@@ -108,7 +108,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     speedBoostTimer: 0,
     doubleBulletTimer: 0,
     beamActive: false,
-    beamDamageAccum: 0,
+    beamCharge: 0, // 0-180 frames (3 seconds to full charge)
     tapRipples: [] as { x: number; y: number; life: number; maxLife: number }[],
     aimTarget: null as { x: number; y: number } | null,
     holdFiring: false,
@@ -565,36 +565,63 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       }
     }
 
-    // Beam weapon: deactivate when not firing
-    if (gs.currentWeapon === "beam" && !firing) {
-      gs.beamActive = false;
+    // Beam weapon: charge-up mechanic
+    if (gs.currentWeapon === "beam") {
+      if (firing) {
+        gs.beamActive = true;
+        gs.beamCharge = Math.min(180, gs.beamCharge + 1);
+      } else {
+        gs.beamActive = false;
+        gs.beamCharge = Math.max(0, gs.beamCharge - 4); // decay quickly
+      }
     }
 
     // Beam weapon: render beam and deal damage
     if (gs.beamActive && gs.currentWeapon === "beam") {
+      const charge = gs.beamCharge / 180; // 0 to 1
       const bx = p.x + p.width / 2;
-      const beamWidth = 6 + Math.sin(gs.frameCount * 0.3) * 2;
+      const baseWidth = 4 + charge * 20; // 4px → 24px
+      const beamWidth = baseWidth + Math.sin(gs.frameCount * 0.3) * (1 + charge * 2);
       const beamColor = gs.cosmeticBulletColor || "#ff4444";
       ctx.save();
+      // Outer glow scales with charge
+      ctx.shadowColor = beamColor;
+      ctx.shadowBlur = 8 + charge * 25;
       const grad = ctx.createLinearGradient(bx, p.y, bx, 0);
       grad.addColorStop(0, beamColor);
-      grad.addColorStop(0.5, beamColor + "cc");
-      grad.addColorStop(1, beamColor + "44");
+      grad.addColorStop(0.4, beamColor + (charge > 0.5 ? "ee" : "aa"));
+      grad.addColorStop(1, beamColor + "33");
       ctx.fillStyle = grad;
-      ctx.shadowColor = beamColor;
-      ctx.shadowBlur = 15;
       ctx.fillRect(bx - beamWidth / 2, 0, beamWidth, p.y);
-      ctx.fillStyle = "#ffffff88";
-      ctx.fillRect(bx - 1, 0, 2, p.y);
+      // Inner core gets brighter with charge
+      const coreAlpha = Math.floor(0x66 + charge * 0x99).toString(16);
+      ctx.fillStyle = `#ffffff${coreAlpha}`;
+      ctx.fillRect(bx - (0.5 + charge * 1.5), 0, 1 + charge * 3, p.y);
+      // Charge indicator ring at ship
+      if (charge < 1) {
+        ctx.strokeStyle = beamColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(bx, p.y, 12 + charge * 6, -Math.PI / 2, -Math.PI / 2 + charge * Math.PI * 2);
+        ctx.stroke();
+      } else {
+        // Full charge pulse
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2 + Math.sin(gs.frameCount * 0.2) * 1;
+        ctx.beginPath();
+        ctx.arc(bx, p.y, 18, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.restore();
-      const beamDmg = (0.3 + gs.damageBonus * 0.15);
+      // Damage scales: 0.15 at start → 0.6 at full charge
+      const beamDmg = (0.15 + charge * 0.45 + gs.damageBonus * 0.15);
       gs.enemies.forEach(e => {
         if (e.type === "stealth" && (e.stealthAlpha ?? 1) < 0.3) return;
         const ex = e.x, ew = e.width;
         if (bx + beamWidth / 2 > ex && bx - beamWidth / 2 < ex + ew && e.y + e.height > 0 && e.y < p.y) {
           e.health -= beamDmg;
-          if (gs.frameCount % 4 === 0) {
-            spawnParticles(bx + (Math.random() - 0.5) * 10, e.y + e.height / 2, beamColor, 2);
+          if (gs.frameCount % (charge > 0.7 ? 2 : 4) === 0) {
+            spawnParticles(bx + (Math.random() - 0.5) * beamWidth, e.y + e.height / 2, beamColor, 1 + Math.floor(charge * 3));
           }
         }
       });
