@@ -1,12 +1,87 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { Gamepad2, Trophy, Zap } from "lucide-react";
+import heroBg from "@/assets/hero-bg.jpg";
 
 const Index = () => {
+  const navigate = useNavigate();
+
+  const topScores = JSON.parse(localStorage.getItem("skyfire-scores") || "[]").slice(0, 5);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background arcade-grid overflow-hidden">
+      {/* Hero */}
+      <section className="relative min-h-screen flex flex-col items-center justify-center px-4">
+        {/* BG Image */}
+        <div className="absolute inset-0 z-0">
+          <img src={heroBg} alt="" className="w-full h-full object-cover opacity-30" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/80 to-background" />
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="relative z-10 text-center max-w-2xl"
+        >
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Zap className="w-12 h-12 text-neon-cyan mx-auto mb-4 drop-shadow-[0_0_15px_hsl(180,100%,50%)]" />
+          </motion.div>
+
+          <h1 className="font-display text-5xl md:text-7xl font-bold text-primary text-glow-cyan mb-4 tracking-wider">
+            SKY FIRE
+          </h1>
+          <p className="font-body text-lg md:text-xl text-muted-foreground mb-10 max-w-md mx-auto">
+            Dodge enemy fire. Destroy invaders. Climb the leaderboard.
+          </p>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate("/play")}
+            className="inline-flex items-center gap-3 px-10 py-4 bg-primary text-primary-foreground font-display text-xl rounded-xl box-glow-cyan hover:shadow-[0_0_40px_hsl(var(--neon-cyan)/0.5)] transition-shadow"
+          >
+            <Gamepad2 className="w-6 h-6" />
+            PLAY NOW
+          </motion.button>
+
+          <div className="flex gap-6 mt-8 justify-center">
+            <button
+              onClick={() => navigate("/leaderboard")}
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-body text-sm"
+            >
+              <Trophy className="w-4 h-4" />
+              Leaderboard
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Leaderboard Preview */}
+        {topScores.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.6 }}
+            className="relative z-10 mt-16 w-full max-w-sm"
+          >
+            <div className="bg-card/60 backdrop-blur-md rounded-xl neon-border p-5">
+              <h3 className="font-display text-xs text-primary text-glow-cyan mb-3 tracking-widest">TOP SCORES</h3>
+              {topScores.map((s: { score: number; player: string }, i: number) => (
+                <div key={i} className="flex justify-between items-center py-1.5 border-b border-border/30 last:border-0">
+                  <span className="font-body text-muted-foreground text-sm">
+                    <span className="text-neon-yellow font-bold mr-2">#{i + 1}</span>
+                    {s.player}
+                  </span>
+                  <span className="font-display text-sm text-primary">{s.score}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </section>
     </div>
   );
 };
