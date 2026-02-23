@@ -36,6 +36,7 @@ export const UPGRADES: UpgradeDef[] = [
   { id: "fireRate", name: "FIRE RATE", desc: "-10% cooldown per level", icon: "⚡", maxLevel: 5, baseCost: 120, costScale: 1.6 },
   { id: "damage", name: "DAMAGE", desc: "+1 bullet damage per level", icon: "💥", maxLevel: 5, baseCost: 150, costScale: 1.8 },
   { id: "shieldDur", name: "SHIELD TIME", desc: "+3s shield duration", icon: "🛡️", maxLevel: 3, baseCost: 200, costScale: 2.0 },
+  { id: "heatSink", name: "HEAT SINK", desc: "+25% beam overheat threshold", icon: "🧊", maxLevel: 3, baseCost: 180, costScale: 1.7 },
 ];
 
 export interface PlayerUpgrades {
@@ -129,6 +130,7 @@ export const getStatBonuses = () => {
     fireRateMult: Math.pow(0.9, lvl("fireRate")),
     damageBonus: lvl("damage"),
     shieldDurBonus: lvl("shieldDur") * 180,
+    beamHeatMax: 120 + lvl("heatSink") * 30, // 120 base + 30 per level
   };
 };
 
