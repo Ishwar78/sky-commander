@@ -39,3 +39,8 @@ export function updateLifetimeStats(gameStats: {
   localStorage.setItem(STATS_KEY, JSON.stringify(stats));
   return stats;
 }
+
+export function resetLifetimeStats() {
+  localStorage.removeItem(STATS_KEY);
+  return { ...DEFAULT_STATS };
+}

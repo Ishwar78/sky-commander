@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, RotateCcw, Volume2, VolumeX, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Slider } from "@/components/ui/slider";
 import { getSettings, saveSettings, resetSettings, getKeyLabel, type GameSettings } from "@/lib/settings";
 import { soundEngine } from "@/lib/sound";
+import { getLifetimeStats, resetLifetimeStats } from "@/lib/stats";
 
 const DIFFICULTY_OPTIONS: { value: GameSettings["difficulty"]; label: string; desc: string }[] = [
   { value: "easy", label: "EASY", desc: "Slower enemies, less damage" },
@@ -120,6 +121,28 @@ const Settings = () => {
                 </button>
               </div>
             ))}
+          </div>
+        </motion.div>
+
+        {/* Reset Stats */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-card/60 backdrop-blur-md rounded-xl neon-border p-5 mt-4">
+          <h2 className="font-display text-sm text-primary tracking-wider mb-3">DATA</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-body text-sm text-foreground">Reset Lifetime Stats</p>
+              <p className="font-body text-[10px] text-muted-foreground">Clears all kills, combos, and game history</p>
+            </div>
+            <button
+              onClick={() => {
+                if (confirm("Reset all lifetime stats? This cannot be undone.")) {
+                  resetLifetimeStats();
+                  alert("Stats reset!");
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30 transition-all font-display text-xs"
+            >
+              <Trash2 className="w-3 h-3" /> RESET
+            </button>
           </div>
         </motion.div>
       </div>
