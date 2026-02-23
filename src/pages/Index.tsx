@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles, Download, Users } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles, Download, Users, Star } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 import { getLifetimeStats } from "@/lib/stats";
@@ -9,6 +9,7 @@ import { useCountUp } from "@/hooks/use-count-up";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import DailyRewardsCalendar from "@/components/DailyRewardsCalendar";
+import { getXPData, xpForLevel, LEVEL_REWARDS } from "@/lib/xp";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -102,6 +103,10 @@ const Index = () => {
           </motion.div>
 
           <h1 className="font-display text-5xl md:text-7xl font-bold text-primary text-glow-cyan mb-4 tracking-wider">SKY FIRE</h1>
+
+          {/* XP Level Badge */}
+          <XPBadge />
+
           <p className="font-body text-lg md:text-xl text-muted-foreground mb-10 max-w-md mx-auto">
             Dodge enemy fire. Destroy invaders. Climb the leaderboard.
           </p>
@@ -276,6 +281,38 @@ const StatsPanel = () => {
           </div>
         </div>
       </div>
+    </motion.div>
+  );
+};
+
+const XPBadge = () => {
+  const xpData = getXPData();
+  const xpNeeded = xpForLevel(xpData.level);
+  const progress = xpData.currentXP / xpNeeded;
+  const nextReward = LEVEL_REWARDS.find(r => r.level > xpData.level);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: 0.4 }}
+      className="flex flex-col items-center mb-4"
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <Star className="w-4 h-4 text-accent" />
+        <span className="font-display text-sm text-accent">LEVEL {xpData.level}</span>
+        <span className="font-body text-[10px] text-muted-foreground">• {xpData.totalXP} total XP</span>
+      </div>
+      <div className="w-48 h-2 bg-muted/40 rounded-full overflow-hidden border border-accent/20">
+        <div
+          className="h-full bg-gradient-to-r from-accent to-primary rounded-full transition-all duration-700"
+          style={{ width: `${Math.min(100, progress * 100)}%`, boxShadow: "0 0 6px hsl(var(--accent) / 0.4)" }}
+        />
+      </div>
+      <span className="font-body text-[9px] text-muted-foreground mt-0.5">
+        {xpData.currentXP} / {xpNeeded} XP
+        {nextReward && ` • Next: ${nextReward.icon} ${nextReward.label} (Lvl ${nextReward.level})`}
+      </span>
     </motion.div>
   );
 };

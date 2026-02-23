@@ -11,6 +11,7 @@ import { checkGameAchievements, ACHIEVEMENTS } from "@/lib/achievements";
 import { getCosmetics, getCosmeticById } from "@/lib/cosmetics";
 import { updateChallengeProgress } from "@/lib/challenges";
 import { updateLifetimeStats } from "@/lib/stats";
+import { calculateGameXP, addXP } from "@/lib/xp";
 import { getActiveBoosts, clearActiveBoosts, POWER_UP_BOOSTS } from "@/pages/PowerUpShop";
 import Tutorial, { hasTutorialBeenSeen } from "./Tutorial";
 
@@ -123,6 +124,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
   const [maxMultiplier, setMaxMultiplier] = useState(1);
   const [currentWeapon, setCurrentWeapon] = useState<WeaponType>("laser");
   const [achievementPopup, setAchievementPopup] = useState<string | null>(null);
+  const [xpGained, setXpGained] = useState<{ xp: number; levelsGained: number; newRewards: { level: number; label: string; icon: string }[] } | null>(null);
 
   useEffect(() => {
     if (!hasTutorialBeenSeen()) setShowTutorial(true);
@@ -937,6 +939,11 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     // Update lifetime stats
     updateLifetimeStats({ kills: gs.totalKills, score: gs.score, maxCombo: gs.maxCombo, wave: gs.wave });
 
+    // Award XP
+    const xpEarned = calculateGameXP({ score: gs.score, kills: gs.totalKills, wave: gs.wave, maxCombo: gs.maxCombo });
+    const xpResult = addXP(xpEarned);
+    setXpGained({ xp: xpEarned, levelsGained: xpResult.levelsGained, newRewards: xpResult.newRewards });
+
     const unlocked = checkGameAchievements({
       score: gs.score, wave: gs.wave, maxCombo: gs.maxCombo,
       maxMultiplier: gs.comboMultiplier > 1 ? gs.comboMultiplier : maxMultiplier,
@@ -1120,7 +1127,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         </div>
       )}
 
-      {gameOver && <GameOverModal score={score} maxCombo={maxCombo} maxMultiplier={maxMultiplier} wave={wave} onRestart={startGame} />}
+      {gameOver && <GameOverModal score={score} maxCombo={maxCombo} maxMultiplier={maxMultiplier} wave={wave} onRestart={startGame} xpGained={xpGained} />}
 
       {gameStarted && !gameOver && !paused && (
         <TouchControls onMove={handleTouchMove} onFire={handleTouchFire} />
