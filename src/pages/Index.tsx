@@ -1,13 +1,28 @@
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
+import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
 
 const Index = () => {
   const navigate = useNavigate();
   const user = getCurrentUser();
   const topScores = getScores().slice(0, 5);
+  const [dailyPopup, setDailyPopup] = useState<{ amount: number; streak: number } | null>(null);
+
+  useEffect(() => {
+    // Auto-show daily bonus popup if available
+    const info = getDailyBonusInfo();
+    if (info.canClaim && user) {
+      const result = claimDailyBonus();
+      if (result.claimed) {
+        setDailyPopup({ amount: result.amount, streak: result.streak });
+        setTimeout(() => setDailyPopup(null), 4000);
+      }
+    }
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -16,6 +31,26 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background arcade-grid overflow-hidden">
+      {/* Daily bonus popup */}
+      <AnimatePresence>
+        {dailyPopup && (
+          <motion.div
+            initial={{ opacity: 0, y: -60, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, y: -60, x: "-50%" }}
+            className="fixed top-14 left-1/2 z-[60] bg-card/90 backdrop-blur-md rounded-xl border border-[hsl(var(--neon-yellow))]/40 px-6 py-3 flex items-center gap-3"
+            style={{ boxShadow: "0 0 30px hsl(50 100% 55% / 0.2)" }}
+          >
+            <Gift className="w-6 h-6 text-[hsl(var(--neon-yellow))]" />
+            <div>
+              <p className="font-display text-sm text-[hsl(var(--neon-yellow))]">+{dailyPopup.amount} COINS</p>
+              <p className="font-body text-[10px] text-muted-foreground">Day {dailyPopup.streak + 1} login bonus!</p>
+            </div>
+            <Coins className="w-5 h-5 text-[hsl(var(--neon-yellow))] animate-bounce" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Auth bar */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-2 bg-background/80 backdrop-blur-sm border-b border-border/30">
         <span className="font-display text-xs text-primary tracking-wider">SKY FIRE</span>

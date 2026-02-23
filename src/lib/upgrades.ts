@@ -41,7 +41,9 @@ export interface PlayerUpgrades {
   totalCoinsEarned: number;
   unlockedWeapons: WeaponType[];
   equippedWeapon: WeaponType;
-  levels: Record<string, number>; // upgrade id -> level
+  levels: Record<string, number>;
+  lastLoginBonus: string; // ISO date string
+  loginStreak: number;
 }
 
 const UPGRADES_KEY = "skyfire-upgrades";
@@ -52,6 +54,8 @@ const defaultUpgrades = (): PlayerUpgrades => ({
   unlockedWeapons: ["laser"],
   equippedWeapon: "laser",
   levels: {},
+  lastLoginBonus: "",
+  loginStreak: 0,
 });
 
 export const getUpgrades = (): PlayerUpgrades => {
@@ -122,6 +126,36 @@ export const getStatBonuses = () => {
     speedBonus: lvl("speed") * 0.5,
     fireRateMult: Math.pow(0.9, lvl("fireRate")),
     damageBonus: lvl("damage"),
-    shieldDurBonus: lvl("shieldDur") * 180, // 3s at 60fps
+    shieldDurBonus: lvl("shieldDur") * 180,
   };
+};
+
+// Daily login bonus
+const DAILY_BONUS_AMOUNTS = [10, 15, 20, 30, 40, 50, 75]; // 7-day cycle
+
+export const claimDailyBonus = (): { claimed: boolean; amount: number; streak: number } => {
+  const u = getUpgrades();
+  const today = new Date().toISOString().split("T")[0];
+  if (u.lastLoginBonus === today) return { claimed: false, amount: 0, streak: u.loginStreak };
+
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const streak = u.lastLoginBonus === yesterday ? Math.min(u.loginStreak + 1, 6) : 0;
+  const amount = DAILY_BONUS_AMOUNTS[streak];
+
+  u.lastLoginBonus = today;
+  u.loginStreak = streak;
+  u.coins += amount;
+  u.totalCoinsEarned += amount;
+  saveUpgrades(u);
+  return { claimed: true, amount, streak };
+};
+
+export const getDailyBonusInfo = () => {
+  const u = getUpgrades();
+  const today = new Date().toISOString().split("T")[0];
+  const canClaim = u.lastLoginBonus !== today;
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const nextStreak = u.lastLoginBonus === yesterday ? Math.min(u.loginStreak + 1, 6) : 0;
+  const nextAmount = DAILY_BONUS_AMOUNTS[canClaim ? nextStreak : u.loginStreak];
+  return { canClaim, streak: canClaim ? nextStreak : u.loginStreak, amount: nextAmount, allAmounts: DAILY_BONUS_AMOUNTS };
 };
