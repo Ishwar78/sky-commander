@@ -4,6 +4,7 @@ import { saveScore } from "@/lib/auth";
 import { addCoins } from "@/lib/upgrades";
 import { Flame, Zap, Trophy, Swords, Coins, Star } from "lucide-react";
 import { getXPData, xpForLevel } from "@/lib/xp";
+import LevelUpConfetti from "./LevelUpConfetti";
 
 interface GameOverModalProps {
   score: number;
@@ -40,6 +41,8 @@ const GameOverModal = ({ score, maxCombo, maxMultiplier, wave, onRestart, xpGain
       animate={{ opacity: 1 }}
       className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 backdrop-blur-md rounded-lg z-40"
     >
+      {/* Confetti celebration on level up */}
+      <LevelUpConfetti show={!!xpGained && xpGained.levelsGained > 0} level={xpData.level} />
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
