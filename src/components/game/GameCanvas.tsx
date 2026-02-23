@@ -104,6 +104,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     armorTimer: 0,
     magnetActive: false,
     tapRipples: [] as { x: number; y: number; life: number; maxLife: number }[],
+    aimTarget: null as { x: number; y: number } | null,
+    holdFiring: false,
   });
   const animFrameRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -250,14 +252,36 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     const p = gs.player;
     const dmgBonus = gs.damageBonus;
     const cx = p.x + p.width / 2;
+    const cy = p.y;
+
+    // Aim-assist: find nearest enemy and calc slight angle toward it
+    let aimAngle = 0;
+    if (gs.enemies.length > 0) {
+      let nearest: Enemy | null = null;
+      let minDist = Infinity;
+      gs.enemies.forEach(e => {
+        const d = Math.sqrt((e.x + e.width / 2 - cx) ** 2 + (e.y + e.height / 2 - cy) ** 2);
+        if (d < minDist) { minDist = d; nearest = e; }
+      });
+      if (nearest && minDist < 400) {
+        const ex = (nearest as Enemy).x + (nearest as Enemy).width / 2;
+        const ey = (nearest as Enemy).y + (nearest as Enemy).height / 2;
+        aimAngle = Math.atan2(ex - cx, cy - ey) * 0.4; // 40% aim-assist strength
+        gs.aimTarget = { x: ex, y: ey };
+      } else {
+        gs.aimTarget = null;
+      }
+    } else {
+      gs.aimTarget = null;
+    }
 
     switch (gs.currentWeapon) {
       case "laser":
-        gs.bullets.push({ x: cx - 2, y: p.y, width: 4, height: 12, speed: 8, damage: 1 + dmgBonus });
+        gs.bullets.push({ x: cx - 2, y: p.y, width: 4, height: 12, speed: 8, damage: 1 + dmgBonus, angle: aimAngle });
         break;
       case "spread":
         for (let i = -1; i <= 1; i++) {
-          gs.bullets.push({ x: cx - 2 + i * 10, y: p.y + Math.abs(i) * 5, width: 4, height: 10, speed: 7, damage: 1 + dmgBonus, angle: i * 0.15 });
+          gs.bullets.push({ x: cx - 2 + i * 10, y: p.y + Math.abs(i) * 5, width: 4, height: 10, speed: 7, damage: 1 + dmgBonus, angle: i * 0.15 + aimAngle * 0.5 });
         }
         break;
       case "homing": {
@@ -882,7 +906,9 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
 
   const unlockedWeapons = gameStateRef.current.unlockedWeapons;
 
-  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const holdFireRef = useRef<number>(0);
+
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const gs = gameStateRef.current;
     if (!gameStarted || gs.gameOver || gs.paused) return;
     const canvas = canvasRef.current;
@@ -892,16 +918,32 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     const scaleY = CANVAS_HEIGHT / rect.height;
     const clickX = (e.clientX - rect.left) * scaleX;
     const clickY = (e.clientY - rect.top) * scaleY;
-    // Shoot from anywhere on canvas
+    // First shot + ripple
     shootWeapon();
-    // Add tap ripple at click position
     gs.tapRipples.push({ x: clickX, y: clickY, life: 20, maxLife: 20 });
+    // Start hold-to-rapid-fire
+    gs.holdFiring = true;
+    const fireLoop = () => {
+      if (!gs.holdFiring || gs.gameOver || gs.paused) return;
+      const now = Date.now();
+      const interval = gs.rapidFire > 0 ? gs.weaponFireRate * 0.4 * gs.fireRateMult : gs.weaponFireRate * gs.fireRateMult;
+      if (now - gs.lastShot >= interval) {
+        shootWeapon();
+      }
+      holdFireRef.current = requestAnimationFrame(fireLoop);
+    };
+    holdFireRef.current = requestAnimationFrame(fireLoop);
   }, [gameStarted, shootWeapon]);
+
+  const handleCanvasMouseUp = useCallback(() => {
+    gameStateRef.current.holdFiring = false;
+    cancelAnimationFrame(holdFireRef.current);
+  }, []);
 
   return (
     <div ref={containerRef} className="relative flex flex-col items-center w-full">
       <div style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
-        <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} onClick={handleCanvasClick} className="rounded-lg neon-border box-glow-cyan cursor-crosshair" style={{ imageRendering: "pixelated" }} />
+        <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} onMouseDown={handleCanvasMouseDown} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} className="rounded-lg neon-border box-glow-cyan cursor-crosshair" style={{ imageRendering: "pixelated" }} />
       </div>
 
       {gameStarted && (
