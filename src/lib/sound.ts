@@ -119,6 +119,38 @@ class SoundEngine {
     });
   }
 
+  achievementUnlock() {
+    if (this.muted) return;
+    const ctx = this.getCtx();
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.12 * this.volume, ctx.currentTime + i * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.2);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.1);
+      osc.stop(ctx.currentTime + i * 0.1 + 0.2);
+    });
+  }
+
+  weaponSwitch() {
+    if (this.muted) return;
+    const ctx = this.getCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(600, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.1 * this.volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.08);
+  }
+
   startMusic() {
     if (this.musicPlaying) return;
     const ctx = this.getCtx();
