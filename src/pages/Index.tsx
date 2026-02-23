@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
@@ -111,22 +111,24 @@ const Index = () => {
             PLAY NOW
           </motion.button>
 
-          <div className="flex gap-6 mt-8 justify-center flex-wrap">
-            <button onClick={() => navigate("/skins")} className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-body text-sm">
-              <Palette className="w-4 h-4" /> Ship Skins
-            </button>
-            <button onClick={() => navigate("/leaderboard")} className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-body text-sm">
-              <Trophy className="w-4 h-4" /> Leaderboard
-            </button>
-            <button onClick={() => navigate("/upgrades")} className="flex items-center gap-2 text-muted-foreground hover:text-[hsl(var(--neon-yellow))] transition-colors font-body text-sm">
-              <Rocket className="w-4 h-4" /> Upgrades
-            </button>
-            <button onClick={() => navigate("/achievements")} className="flex items-center gap-2 text-muted-foreground hover:text-accent transition-colors font-body text-sm">
-              <Award className="w-4 h-4" /> Achievements
-            </button>
-            <button onClick={() => navigate("/settings")} className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-body text-sm">
-              <Settings className="w-4 h-4" /> Settings
-            </button>
+          <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 mt-8 w-full max-w-md mx-auto">
+            {[
+              { path: "/skins", icon: <Palette className="w-5 h-5" />, label: "Ship Skins", color: "text-primary" },
+              { path: "/leaderboard", icon: <Trophy className="w-5 h-5" />, label: "Leaderboard", color: "text-primary" },
+              { path: "/upgrades", icon: <Rocket className="w-5 h-5" />, label: "Upgrades", color: "text-[hsl(var(--neon-yellow))]" },
+              { path: "/achievements", icon: <Award className="w-5 h-5" />, label: "Achievements", color: "text-accent" },
+              { path: "/profile", icon: <UserCircle className="w-5 h-5" />, label: "Profile", color: "text-primary" },
+              { path: "/settings", icon: <Settings className="w-5 h-5" />, label: "Settings", color: "text-primary" },
+            ].map((item) => (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/30 bg-card/40 hover:bg-card/70 hover:border-primary/40 transition-all ${item.color}`}
+              >
+                {item.icon}
+                <span className="font-body text-xs">{item.label}</span>
+              </button>
+            ))}
           </div>
         </motion.div>
 

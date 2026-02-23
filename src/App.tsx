@@ -12,6 +12,7 @@ import Admin from "./pages/Admin";
 import Settings from "./pages/Settings";
 import Upgrades from "./pages/Upgrades";
 import Achievements from "./pages/Achievements";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/upgrades" element={<Upgrades />} />
           <Route path="/achievements" element={<Achievements />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
