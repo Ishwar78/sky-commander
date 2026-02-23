@@ -197,10 +197,16 @@ const Upgrades = () => {
             {WEAPONS.map((w) => {
               const owned = upgrades.unlockedWeapons.includes(w.id);
               const equipped = upgrades.equippedWeapon === w.id;
+              const xpData = getXPData();
+              // Check level requirement from LEVEL_REWARDS
+              const weaponReward = LEVEL_REWARDS.find(r => r.type === "weapon" && r.label.toLowerCase().includes(w.id === "spread" ? "spread" : w.id === "homing" ? "homing" : ""));
+              const requiredLevel = weaponReward?.level || 0;
+              const levelLocked = requiredLevel > 0 && xpData.level < requiredLevel;
               return (
                 <div
                   key={w.id}
                   className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                    levelLocked ? "border-border/10 bg-muted/5 opacity-50" :
                     equipped ? "border-primary bg-primary/10 box-glow-cyan" : owned ? "border-border/30 bg-muted/20" : "border-border/20 bg-muted/10 opacity-80"
                   }`}
                 >
@@ -209,13 +215,21 @@ const Upgrades = () => {
                     <div>
                       <span className="font-display text-xs block">{w.icon} {w.name}</span>
                       <span className="font-body text-[10px] text-muted-foreground">{w.desc}</span>
-                      <div className="flex gap-3 mt-0.5">
-                        <span className="font-body text-[9px] text-primary">DMG: {w.damage}</span>
-                        <span className="font-body text-[9px] text-accent">RATE: {Math.round(1000 / w.fireRate * 10) / 10}/s</span>
-                      </div>
+                      {levelLocked ? (
+                        <span className="font-body text-[9px] text-destructive flex items-center gap-1 mt-0.5">
+                          <Star className="w-3 h-3" /> Requires Level {requiredLevel}
+                        </span>
+                      ) : (
+                        <div className="flex gap-3 mt-0.5">
+                          <span className="font-body text-[9px] text-primary">DMG: {w.damage}</span>
+                          <span className="font-body text-[9px] text-accent">RATE: {Math.round(1000 / w.fireRate * 10) / 10}/s</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {equipped ? (
+                  {levelLocked ? (
+                    <span className="font-display text-[10px] text-muted-foreground flex items-center gap-1"><Lock className="w-3 h-3" /> LVL {requiredLevel}</span>
+                  ) : equipped ? (
                     <span className="font-display text-[10px] text-primary flex items-center gap-1"><Check className="w-3 h-3" /> EQUIPPED</span>
                   ) : owned ? (
                     <button onClick={() => handleEquip(w.id)} className="px-3 py-1 bg-primary/20 text-primary font-display text-[10px] rounded hover:bg-primary/30 transition-colors">

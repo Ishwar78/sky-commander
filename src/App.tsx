@@ -20,6 +20,7 @@ import Challenges from "./pages/Challenges";
 import CosmeticShop from "./pages/CosmeticShop";
 import PowerUpShop from "./pages/PowerUpShop";
 import PvPPage from "./pages/PvPPage";
+import Levels from "./pages/Levels";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
           <Route path="/cosmetics" element={<CosmeticShop />} />
           <Route path="/powerups" element={<PowerUpShop />} />
           <Route path="/pvp" element={<PvPPage />} />
+          <Route path="/levels" element={<Levels />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
