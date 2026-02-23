@@ -10,6 +10,7 @@ import { getUpgrades, getStatBonuses, WEAPONS, type WeaponType } from "@/lib/upg
 import { checkGameAchievements, ACHIEVEMENTS } from "@/lib/achievements";
 import { getCosmetics, getCosmeticById } from "@/lib/cosmetics";
 import { updateChallengeProgress } from "@/lib/challenges";
+import { updateLifetimeStats } from "@/lib/stats";
 import { getActiveBoosts, clearActiveBoosts, POWER_UP_BOOSTS } from "@/pages/PowerUpShop";
 import Tutorial, { hasTutorialBeenSeen } from "./Tutorial";
 
@@ -617,6 +618,14 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
           if (e.health <= 0) {
             gs.combo++; gs.comboTimer = 120; gs.comboMultiplier = 1 + Math.floor(gs.combo / 3) * 0.5;
             if (gs.combo > gs.maxCombo) { gs.maxCombo = gs.combo; setMaxCombo(gs.maxCombo); }
+            // UNSTOPPABLE flash + burst at combo 15
+            if (gs.combo === 15) {
+              gs.hitFlash = 15;
+              for (let k = 0; k < 40; k++) {
+                const angle = (Math.PI * 2 / 40) * k;
+                gs.particles.push({ x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, vx: Math.cos(angle) * (3 + Math.random() * 4), vy: Math.sin(angle) * (3 + Math.random() * 4), life: 30 + Math.random() * 20, maxLife: 50, color: ["#ff3333", "#ff66ff", "#ffcc00", "#00ffcc"][k % 4], size: 2 + Math.random() * 3 });
+              }
+            }
             if (gs.comboMultiplier > maxMultiplier) { setMaxMultiplier(gs.comboMultiplier); }
             const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "shield" ? 25 : e.type === "splitter" ? 20 : e.type === "stealth" ? 20 : e.type === "fast" ? 15 : e.type === "mini" ? 5 : 10;
             const scoreMult = gs.doubleScoreTimer > 0 ? 2 : 1;
@@ -925,7 +934,9 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     updateChallengeProgress("boss_kills", gs.bossKills);
     if (mode === "bossrush") updateChallengeProgress("bossrush_wave", gs.wave);
 
-    // Check achievements on game over
+    // Update lifetime stats
+    updateLifetimeStats({ kills: gs.totalKills, score: gs.score, maxCombo: gs.maxCombo, wave: gs.wave });
+
     const unlocked = checkGameAchievements({
       score: gs.score, wave: gs.wave, maxCombo: gs.maxCombo,
       maxMultiplier: gs.comboMultiplier > 1 ? gs.comboMultiplier : maxMultiplier,

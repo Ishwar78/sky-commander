@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles, Download, Users } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
+import { getLifetimeStats } from "@/lib/stats";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import DailyRewardsCalendar from "@/components/DailyRewardsCalendar";
@@ -198,6 +199,47 @@ const Index = () => {
         </motion.div>
 
         <DailyRewardsCalendar />
+
+        {/* Lifetime Stats */}
+        {(() => {
+          const stats = getLifetimeStats();
+          if (stats.gamesPlayed === 0) return null;
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.6 }}
+              className="relative z-10 mt-6 w-full max-w-sm"
+            >
+              <div className="bg-card/60 backdrop-blur-md rounded-xl neon-border p-5">
+                <h3 className="font-display text-xs text-primary text-glow-cyan mb-3 tracking-widest">LIFETIME STATS</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "TOTAL KILLS", value: stats.totalKills, icon: "💀" },
+                    { label: "BEST COMBO", value: `${stats.bestCombo}x`, icon: "🔥" },
+                    { label: "GAMES PLAYED", value: stats.gamesPlayed, icon: "🎮" },
+                  ].map((s) => (
+                    <div key={s.label} className="text-center">
+                      <p className="text-lg">{s.icon}</p>
+                      <p className="font-display text-lg text-primary">{s.value}</p>
+                      <p className="font-body text-[9px] text-muted-foreground">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-border/30">
+                  <div className="text-center">
+                    <p className="font-display text-sm text-[hsl(var(--neon-yellow))]">{stats.totalScore}</p>
+                    <p className="font-body text-[9px] text-muted-foreground">TOTAL SCORE</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-display text-sm text-accent">{stats.highestWave}</p>
+                    <p className="font-body text-[9px] text-muted-foreground">HIGHEST WAVE</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {topScores.length > 0 && (
           <motion.div
