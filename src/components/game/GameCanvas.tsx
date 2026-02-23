@@ -116,6 +116,7 @@ const GameCanvas = () => {
   const showAchievementPopup = (id: string) => {
     const def = ACHIEVEMENTS.find(a => a.id === id);
     if (def) {
+      soundEngine.achievementUnlock();
       setAchievementPopup(`${def.icon} ${def.name}`);
       setTimeout(() => setAchievementPopup(null), 3000);
     }
@@ -196,6 +197,7 @@ const GameCanvas = () => {
   const switchWeapon = useCallback((weapon: WeaponType) => {
     const gs = gameStateRef.current;
     if (!gs.unlockedWeapons.includes(weapon)) return;
+    if (gs.currentWeapon !== weapon) soundEngine.weaponSwitch();
     gs.currentWeapon = weapon;
     const def = WEAPONS.find(w => w.id === weapon)!;
     gs.weaponFireRate = def.fireRate;
