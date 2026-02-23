@@ -8,6 +8,8 @@ import { getSkin, type ShipSkin } from "@/lib/skins";
 import { getSettings, DIFFICULTY_MULTIPLIERS } from "@/lib/settings";
 import { getUpgrades, getStatBonuses, WEAPONS, type WeaponType } from "@/lib/upgrades";
 import { checkGameAchievements, ACHIEVEMENTS } from "@/lib/achievements";
+import { getCosmetics, getCosmeticById } from "@/lib/cosmetics";
+import { updateChallengeProgress } from "@/lib/challenges";
 import Tutorial, { hasTutorialBeenSeen } from "./Tutorial";
 
 interface Player { x: number; y: number; width: number; height: number; speed: number; }
@@ -88,6 +90,15 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     weaponDamage: 1,
     speedBonus: 0, fireRateMult: 1, damageBonus: 0, shieldDurBonus: 0,
     bossKilledThisGame: false,
+    noDamageKills: 0,
+    totalKills: 0,
+    bossKills: 0,
+    cosmeticExplosionColor: null as string | null,
+    cosmeticExplosionColor2: null as string | null,
+    cosmeticTrailColor: null as string | null,
+    cosmeticTrailColor2: null as string | null,
+    cosmeticBulletColor: null as string | null,
+    cosmeticBulletColor2: null as string | null,
   });
   const animFrameRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -506,7 +517,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       } else if (b.angle) { b.x += Math.sin(b.angle) * b.speed; b.y -= Math.cos(b.angle) * b.speed * 0.95; }
       else { b.y -= b.speed; }
       ctx.save();
-      const wColor = gs.multiShot > 0 ? "#ff66ff" : gs.rapidFire > 0 ? "#ffcc00" : WEAPON_COLORS[gs.currentWeapon];
+      const wColor = gs.multiShot > 0 ? "#ff66ff" : gs.rapidFire > 0 ? "#ffcc00" : (gs.cosmeticBulletColor || WEAPON_COLORS[gs.currentWeapon]);
       ctx.fillStyle = wColor; ctx.shadowColor = wColor; ctx.shadowBlur = 8;
       if (b.homing) { ctx.beginPath(); ctx.arc(b.x + b.width / 2, b.y + b.height / 2, 4, 0, Math.PI * 2); ctx.fill(); }
       else { ctx.fillRect(b.x, b.y, b.width, b.height); }
@@ -578,8 +589,11 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
             const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "shield" ? 25 : e.type === "splitter" ? 20 : e.type === "stealth" ? 20 : e.type === "fast" ? 15 : e.type === "mini" ? 5 : 10;
             gs.score += Math.round(basePts * gs.comboMultiplier); setScore(gs.score);
             gs.waveKills++;
-            spawnParticles(e.x + e.width / 2, e.y + e.height / 2, ENEMY_COLORS[e.type], e.type === "boss" ? 30 : 12);
+            const explosionColor = gs.cosmeticExplosionColor || ENEMY_COLORS[e.type];
+            spawnParticles(e.x + e.width / 2, e.y + e.height / 2, explosionColor, e.type === "boss" ? 30 : 12);
             soundEngine.explosion();
+            gs.totalKills++;
+            gs.noDamageKills++;
             spawnPowerUp(e.x + e.width / 2, e.y + e.height / 2);
             // Splitter: spawn 2 mini enemies
             if (e.type === "splitter") {
@@ -592,7 +606,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
               }
             }
             if (e.type === "boss") {
-              gs.bossActive = false; gs.bossKilledThisGame = true;
+              gs.bossActive = false; gs.bossKilledThisGame = true; gs.bossKills++;
               triggerShake(20);
               spawnPowerUp(e.x + 20, e.y + 20); spawnPowerUp(e.x + e.width - 20, e.y + 20);
             }
@@ -609,7 +623,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
           const dmg = e.type === "boss" ? 40 : e.type === "tank" ? 30 : 20;
           gs.health -= dmg; setHealth(gs.health); soundEngine.hit(); triggerShake(10);
           spawnParticles(e.x + e.width / 2, e.y + e.height / 2, "#ffcc00", 8);
-          gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0;
+          gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0; gs.noDamageKills = 0;
           if (gs.health <= 0) { gs.gameOver = true; setGameOver(true); soundEngine.gameOver(); soundEngine.stopMusic(); }
         }
         if (e.type !== "boss") return false;
@@ -628,7 +642,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       ctx.beginPath(); ctx.arc(eb.x + eb.width / 2, eb.y + eb.height / 2, eb.width / 2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       if (eb.x < p.x + p.width && eb.x + eb.width > p.x && eb.y < p.y + p.height && eb.y + eb.height > p.y) {
         if (gs.shield > 0) { gs.shield = Math.max(0, gs.shield - 60); spawnParticles(eb.x, eb.y, "#00ccff", 5); }
-        else { gs.health -= 10; setHealth(gs.health); soundEngine.hit(); triggerShake(4); gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0; spawnParticles(eb.x, eb.y, "#ff4444", 5); if (gs.health <= 0) { gs.gameOver = true; setGameOver(true); soundEngine.gameOver(); soundEngine.stopMusic(); } }
+        else { gs.health -= 10; setHealth(gs.health); soundEngine.hit(); triggerShake(4); gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0; gs.noDamageKills = 0; spawnParticles(eb.x, eb.y, "#ff4444", 5); if (gs.health <= 0) { gs.gameOver = true; setGameOver(true); soundEngine.gameOver(); soundEngine.stopMusic(); } }
         return false;
       }
       return eb.x > -10 && eb.x < CANVAS_WIDTH + 10 && eb.y > -10 && eb.y < CANVAS_HEIGHT + 10;
@@ -648,7 +662,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     });
 
     gs.particles = gs.particles.filter((pt) => { pt.x += pt.vx; pt.y += pt.vy; pt.life--; const alpha = pt.life / pt.maxLife; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = pt.color; ctx.shadowColor = pt.color; ctx.shadowBlur = 5; ctx.fillRect(pt.x, pt.y, pt.size, pt.size); ctx.restore(); return pt.life > 0; });
-    gs.trailParticles = gs.trailParticles.filter((tp) => { tp.life--; const alpha = tp.life / tp.maxLife; ctx.save(); ctx.globalAlpha = Math.max(0, alpha * 0.6); ctx.fillStyle = skin.engineColor; ctx.shadowColor = skin.engineColor; ctx.shadowBlur = 4; ctx.beginPath(); ctx.arc(tp.x, tp.y + (tp.maxLife - tp.life) * 0.5, Math.max(0.1, tp.size * alpha), 0, Math.PI * 2); ctx.fill(); ctx.restore(); return tp.life > 0; });
+    gs.trailParticles = gs.trailParticles.filter((tp) => { tp.life--; const alpha = tp.life / tp.maxLife; ctx.save(); ctx.globalAlpha = Math.max(0, alpha * 0.6); const trailCol = gs.cosmeticTrailColor || skin.engineColor; ctx.fillStyle = trailCol; ctx.shadowColor = trailCol; ctx.shadowBlur = 4; ctx.beginPath(); ctx.arc(tp.x, tp.y + (tp.maxLife - tp.life) * 0.5, Math.max(0.1, tp.size * alpha), 0, Math.PI * 2); ctx.fill(); ctx.restore(); return tp.life > 0; });
 
     drawPlayer(ctx, p, gs.shield > 0);
 
@@ -734,7 +748,23 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     gs.wave = 1; gs.waveKills = 0; gs.waveThreshold = 10; gs.bossActive = false;
     gs.waveTransition = false; gs.waveTransitionTimer = 0; gs.shakeIntensity = 0; gs.hitFlash = 0;
     gs.combo = 0; gs.comboTimer = 0; gs.maxCombo = 0; gs.comboMultiplier = 1;
-    gs.bossKilledThisGame = false;
+    gs.bossKilledThisGame = false; gs.noDamageKills = 0; gs.totalKills = 0; gs.bossKills = 0;
+
+    // Load cosmetics
+    const cosState = getCosmetics();
+    if (cosState.equipped.explosion) {
+      const c = getCosmeticById(cosState.equipped.explosion);
+      if (c) { gs.cosmeticExplosionColor = c.color; gs.cosmeticExplosionColor2 = c.preview; }
+    } else { gs.cosmeticExplosionColor = null; gs.cosmeticExplosionColor2 = null; }
+    if (cosState.equipped.trail) {
+      const c = getCosmeticById(cosState.equipped.trail);
+      if (c) { gs.cosmeticTrailColor = c.color; gs.cosmeticTrailColor2 = c.preview; }
+    } else { gs.cosmeticTrailColor = null; gs.cosmeticTrailColor2 = null; }
+    if (cosState.equipped.bullet) {
+      const c = getCosmeticById(cosState.equipped.bullet);
+      if (c) { gs.cosmeticBulletColor = c.color; gs.cosmeticBulletColor2 = c.preview; }
+    } else { gs.cosmeticBulletColor = null; gs.cosmeticBulletColor2 = null; }
+
     setScore(0); setHealth(gs.maxHealth); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0); setMaxCombo(0); setMaxMultiplier(1);
     initStars();
     soundEngine.startMusic();
@@ -746,6 +776,16 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
 
   const handleGameOver = useCallback(() => {
     const gs = gameStateRef.current;
+
+    // Update challenge progress
+    updateChallengeProgress("kills", gs.totalKills);
+    updateChallengeProgress("score", gs.score);
+    updateChallengeProgress("wave", gs.wave);
+    updateChallengeProgress("combo", gs.maxCombo);
+    updateChallengeProgress("no_damage_kills", gs.noDamageKills);
+    updateChallengeProgress("boss_kills", gs.bossKills);
+    if (mode === "bossrush") updateChallengeProgress("bossrush_wave", gs.wave);
+
     // Check achievements on game over
     const unlocked = checkGameAchievements({
       score: gs.score, wave: gs.wave, maxCombo: gs.maxCombo,

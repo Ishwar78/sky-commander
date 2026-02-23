@@ -4,6 +4,7 @@ import { ArrowLeft, Swords, Calendar, CalendarDays, Coins, Check } from "lucide-
 import { motion } from "framer-motion";
 import { getChallenges, getChallengeById, claimChallengeReward } from "@/lib/challenges";
 import { addCoins, getUpgrades } from "@/lib/upgrades";
+import { soundEngine } from "@/lib/sound";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Challenges = () => {
@@ -15,6 +16,7 @@ const Challenges = () => {
     const reward = claimChallengeReward(id);
     if (reward > 0) {
       addCoins(reward);
+      soundEngine.claimReward();
       setCoins(getUpgrades().coins);
       setClaimed(id);
       setState(getChallenges());

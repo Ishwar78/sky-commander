@@ -4,6 +4,7 @@ import { ArrowLeft, Sparkles, Coins, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { COSMETICS, getCosmetics, purchaseCosmetic, equipCosmetic, unequipCosmetic, CosmeticItem } from "@/lib/cosmetics";
 import { getUpgrades } from "@/lib/upgrades";
+import { soundEngine } from "@/lib/sound";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const CATEGORY_LABELS: Record<CosmeticItem["category"], { label: string; icon: string }> = {
@@ -24,6 +25,7 @@ const CosmeticShop = () => {
 
   const handleBuy = (id: string) => {
     if (purchaseCosmetic(id)) {
+      soundEngine.purchase();
       setJustBought(id);
       refresh();
       setTimeout(() => setJustBought(null), 1500);
@@ -32,11 +34,13 @@ const CosmeticShop = () => {
 
   const handleEquip = (id: string) => {
     equipCosmetic(id);
+    soundEngine.equip();
     refresh();
   };
 
   const handleUnequip = (category: CosmeticItem["category"]) => {
     unequipCosmetic(category);
+    soundEngine.equip();
     refresh();
   };
 

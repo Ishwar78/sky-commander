@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles, Download } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
 
 const Index = () => {
   const navigate = useNavigate();
   const user = getCurrentUser();
   const topScores = getScores().slice(0, 5);
   const [dailyPopup, setDailyPopup] = useState<{ amount: number; streak: number } | null>(null);
+  const { canInstall, isInstalled, install } = useInstallPrompt();
 
   useEffect(() => {
     // Auto-show daily bonus popup if available
@@ -122,6 +124,23 @@ const Index = () => {
             </motion.button>
           </div>
 
+          {/* Install PWA button */}
+          {canInstall && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={install}
+              className="mt-4 inline-flex items-center gap-2 px-6 py-2 bg-[hsl(var(--neon-green))]/20 border border-[hsl(var(--neon-green))]/40 text-[hsl(var(--neon-green))] font-display text-sm rounded-xl hover:bg-[hsl(var(--neon-green))]/30 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              INSTALL APP
+            </motion.button>
+          )}
+          {isInstalled && (
+            <p className="mt-3 font-body text-[10px] text-[hsl(var(--neon-green))]/60">✓ App installed</p>
+          )}
           <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 mt-8 w-full max-w-md mx-auto">
             {[
               { path: "/skins", icon: <Palette className="w-5 h-5" />, label: "Ship Skins", color: "text-primary" },
