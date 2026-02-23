@@ -109,6 +109,9 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     doubleBulletTimer: 0,
     beamActive: false,
     beamCharge: 0, // 0-180 frames (3 seconds to full charge)
+    beamHeat: 0, // 0-120 frames at full charge before overheat
+    beamOverheated: false, // forced cooldown state
+    beamCooldown: 0, // cooldown frames remaining (90 = 1.5s)
     tapRipples: [] as { x: number; y: number; life: number; maxLife: number }[],
     aimTarget: null as { x: number; y: number } | null,
     holdFiring: false,
@@ -567,7 +570,17 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
 
     // Beam weapon: charge-up mechanic
     if (gs.currentWeapon === "beam") {
-      if (firing) {
+      // Handle overheat cooldown
+      if (gs.beamOverheated) {
+        gs.beamActive = false;
+        gs.beamCooldown = Math.max(0, gs.beamCooldown - 1);
+        gs.beamCharge = Math.max(0, gs.beamCharge - 3);
+        gs.beamHeat = Math.max(0, gs.beamHeat - 2);
+        if (gs.beamCooldown <= 0) {
+          gs.beamOverheated = false;
+          gs.beamHeat = 0;
+        }
+      } else if (firing) {
         gs.beamActive = true;
         const wasFull = gs.beamCharge >= 180;
         gs.beamCharge = Math.min(180, gs.beamCharge + 1);
@@ -579,9 +592,21 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         if (gs.beamCharge >= 180 && gs.shakeIntensity < 1.5) {
           gs.shakeIntensity = 1.5;
         }
+        // Accumulate heat at full charge
+        if (gs.beamCharge >= 180) {
+          gs.beamHeat = Math.min(120, gs.beamHeat + 1);
+          if (gs.beamHeat >= 120) {
+            gs.beamOverheated = true;
+            gs.beamCooldown = 90; // 1.5s cooldown
+            gs.shakeIntensity = 8; // big shake on overheat
+          }
+        } else {
+          gs.beamHeat = Math.max(0, gs.beamHeat - 1); // slow heat decay when not full
+        }
       } else {
         gs.beamActive = false;
-        gs.beamCharge = Math.max(0, gs.beamCharge - 4); // decay quickly
+        gs.beamCharge = Math.max(0, gs.beamCharge - 4);
+        gs.beamHeat = Math.max(0, gs.beamHeat - 2); // heat dissipates when not firing
       }
     }
 
@@ -874,13 +899,32 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     // Beam charge bar (only when beam weapon equipped)
     if (gs.currentWeapon === "beam") {
       const charge = gs.beamCharge / 180;
+      const heat = gs.beamHeat / 120;
+      const overheated = gs.beamOverheated;
+
+      // Charge bar
       ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(10, 30, 120, 8);
-      ctx.strokeStyle = "#ff4444"; ctx.lineWidth = 1; ctx.strokeRect(10, 30, 120, 8);
-      const chargeColor = charge >= 1 ? "#ffffff" : charge > 0.6 ? "#ff6666" : "#ff4444";
+      ctx.strokeStyle = overheated ? "#ff8800" : "#ff4444"; ctx.lineWidth = 1; ctx.strokeRect(10, 30, 120, 8);
+      const chargeColor = overheated ? "#ff6600" : charge >= 1 ? "#ffffff" : charge > 0.6 ? "#ff6666" : "#ff4444";
       ctx.fillStyle = chargeColor; ctx.shadowColor = chargeColor; ctx.shadowBlur = charge * 12;
       ctx.fillRect(12, 32, 116 * charge, 4); ctx.shadowBlur = 0;
-      ctx.font = "7px Rajdhani"; ctx.fillStyle = "#ff8888"; ctx.textAlign = "left";
-      ctx.fillText(`CHARGE ${Math.floor(charge * 100)}%`, 12, 48);
+
+      // Heat bar (below charge bar)
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(10, 42, 120, 6);
+      ctx.strokeStyle = heat > 0.8 ? "#ff4400" : "#ff8800"; ctx.lineWidth = 1; ctx.strokeRect(10, 42, 120, 6);
+      const heatColor = overheated ? "#ff2200" : heat > 0.8 ? `rgb(255, ${Math.floor(68 - heat * 68)}, 0)` : "#ff8800";
+      ctx.fillStyle = heatColor;
+      if (heat > 0.8 && !overheated) { ctx.shadowColor = "#ff4400"; ctx.shadowBlur = 8 + Math.sin(gs.frameCount * 0.4) * 4; }
+      ctx.fillRect(12, 44, 116 * heat, 2); ctx.shadowBlur = 0;
+
+      ctx.font = "7px Rajdhani"; ctx.textAlign = "left";
+      if (overheated) {
+        ctx.fillStyle = gs.frameCount % 20 < 10 ? "#ff4400" : "#ff8800";
+        ctx.fillText("OVERHEAT!", 12, 58);
+      } else {
+        ctx.fillStyle = "#ff8888";
+        ctx.fillText(`CHARGE ${Math.floor(charge * 100)}%`, 12, 58);
+      }
     }
     ctx.font = "bold 20px Orbitron"; ctx.textAlign = "right"; ctx.fillText(`${gs.score}`, CANVAS_WIDTH - 15, 26); ctx.shadowBlur = 0;
     ctx.font = "10px Rajdhani"; ctx.fillStyle = `${skin.glowColor}80`; ctx.fillText("SCORE", CANVAS_WIDTH - 15, 38);
@@ -889,7 +933,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
 
     const weaponDef = WEAPONS.find(w => w.id === gs.currentWeapon)!;
     ctx.font = "9px Orbitron"; ctx.fillStyle = WEAPON_COLORS[gs.currentWeapon]; ctx.shadowColor = WEAPON_COLORS[gs.currentWeapon]; ctx.shadowBlur = 5;
-    ctx.textAlign = "left"; ctx.fillText(`${weaponDef.icon} ${weaponDef.name}`, 12, 52); ctx.shadowBlur = 0;
+    const weaponLabelY = gs.currentWeapon === "beam" ? 68 : 52;
+    ctx.textAlign = "left"; ctx.fillText(`${weaponDef.icon} ${weaponDef.name}`, 12, weaponLabelY); ctx.shadowBlur = 0;
 
     if (gs.combo >= 2) {
       const comboAlpha = Math.min(1, gs.comboTimer / 30);
