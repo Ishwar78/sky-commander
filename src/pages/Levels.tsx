@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Star, Lock, Check } from "lucide-react";
-import { motion } from "framer-motion";
-import { getXPData, xpForLevel, LEVEL_REWARDS, MAX_LEVEL, type LevelReward } from "@/lib/xp";
+import { ArrowLeft, Star, Lock, Check, RotateCcw } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { getXPData, xpForLevel, LEVEL_REWARDS, MAX_LEVEL, type LevelReward, canPrestige, doPrestige, getPrestigeData, getPrestigeRankName, getPrestigeRankIcon } from "@/lib/xp";
+import { soundEngine } from "@/lib/sound";
 
 const TYPE_COLORS: Record<LevelReward["type"], string> = {
   weapon: "text-destructive",
@@ -13,9 +15,22 @@ const TYPE_COLORS: Record<LevelReward["type"], string> = {
 };
 
 const Levels = () => {
-  const xpData = getXPData();
+  const [xpData, setXpData] = useState(getXPData());
+  const [prestige, setPrestige] = useState(getPrestigeData());
+  const [prestigeMsg, setPrestigeMsg] = useState<string | null>(null);
   const xpNeeded = xpForLevel(xpData.level);
   const progress = xpData.currentXP / xpNeeded;
+
+  const handlePrestige = () => {
+    if (!canPrestige()) return;
+    if (!confirm("Prestige will reset your level to 1 but grant permanent bonuses. Continue?")) return;
+    const result = doPrestige();
+    setPrestige(result.newPrestige);
+    setXpData(getXPData());
+    setPrestigeMsg(result.message);
+    soundEngine.levelUp();
+    setTimeout(() => setPrestigeMsg(null), 5000);
+  };
 
   return (
     <div className="min-h-screen bg-background arcade-grid p-4">
@@ -27,6 +42,37 @@ const Levels = () => {
           <h1 className="font-display text-xl text-primary text-glow-cyan tracking-wider">LEVELS</h1>
           <div className="w-16" />
         </div>
+
+        {/* Prestige banner */}
+        {prestige.rank > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-[hsl(var(--neon-yellow))]/10 border border-[hsl(var(--neon-yellow))]/30 rounded-xl p-3 mb-4 text-center"
+          >
+            <span className="text-lg">{getPrestigeRankIcon(prestige.rank)}</span>
+            <span className="font-display text-sm text-[hsl(var(--neon-yellow))] ml-2">
+              {getPrestigeRankName(prestige.rank)} Prestige {prestige.totalPrestiges}
+            </span>
+            <p className="font-body text-[9px] text-muted-foreground mt-1">
+              +{prestige.bonusCoinsPerGame} coins/game · +{prestige.bonusXPPercent}% XP
+            </p>
+          </motion.div>
+        )}
+
+        {/* Prestige message */}
+        <AnimatePresence>
+          {prestigeMsg && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="bg-accent/15 border border-accent/40 rounded-xl p-3 mb-4 text-center"
+            >
+              <p className="font-display text-sm text-accent">🎉 {prestigeMsg}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Current level card */}
         <motion.div
@@ -51,6 +97,21 @@ const Levels = () => {
           <p className="font-body text-[10px] text-muted-foreground">
             {xpData.level >= MAX_LEVEL ? "MAX LEVEL" : `${xpData.currentXP} / ${xpNeeded} XP to Level ${xpData.level + 1}`}
           </p>
+
+          {/* Prestige button */}
+          {canPrestige() && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handlePrestige}
+              className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[hsl(var(--neon-yellow))]/20 border border-[hsl(var(--neon-yellow))]/50 text-[hsl(var(--neon-yellow))] font-display text-xs rounded-lg hover:bg-[hsl(var(--neon-yellow))]/30 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              PRESTIGE (Reset for Bonuses)
+            </motion.button>
+          )}
         </motion.div>
 
         {/* Level list */}
@@ -74,7 +135,6 @@ const Levels = () => {
                     : "border-border/15 bg-muted/5 opacity-60"
                 }`}
               >
-                {/* Level number */}
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center font-display text-sm flex-shrink-0 ${
                   isCurrent
                     ? "bg-accent text-accent-foreground"
@@ -85,7 +145,6 @@ const Levels = () => {
                   {unlocked ? level : <Lock className="w-3.5 h-3.5" />}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className={`font-display text-xs ${unlocked ? "text-foreground" : "text-muted-foreground"}`}>
@@ -111,7 +170,6 @@ const Levels = () => {
                   )}
                 </div>
 
-                {/* XP needed */}
                 {!unlocked && (
                   <span className="font-body text-[9px] text-muted-foreground flex-shrink-0">
                     {xpForLevel(level)} XP

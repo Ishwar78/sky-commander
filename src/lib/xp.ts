@@ -1,9 +1,17 @@
 const XP_KEY = "skyfire_xp_data";
+const PRESTIGE_KEY = "skyfire_prestige";
 
 export interface XPData {
   level: number;
   currentXP: number;
   totalXP: number;
+}
+
+export interface PrestigeData {
+  rank: number;
+  totalPrestiges: number;
+  bonusCoinsPerGame: number;
+  bonusXPPercent: number;
 }
 
 export interface LevelReward {
@@ -78,9 +86,12 @@ export function calculateGameXP(stats: {
 
 export function addXP(amount: number): { data: XPData; levelsGained: number; newRewards: LevelReward[] } {
   const data = getXPData();
+  const prestige = getPrestigeData();
   const oldLevel = data.level;
-  data.currentXP += amount;
-  data.totalXP += amount;
+  // Apply prestige XP bonus
+  const bonusAmount = prestige.bonusXPPercent > 0 ? Math.floor(amount * (1 + prestige.bonusXPPercent / 100)) : amount;
+  data.currentXP += bonusAmount;
+  data.totalXP += bonusAmount;
 
   // Level up loop
   while (data.level < MAX_LEVEL) {
@@ -117,4 +128,57 @@ export function getUnlockedRewards(): LevelReward[] {
 
 export function resetXPData() {
   localStorage.removeItem(XP_KEY);
+}
+
+// ---- Prestige System ----
+
+const PRESTIGE_RANKS = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster", "Legend"];
+const PRESTIGE_ICONS = ["🥉", "🥈", "🥇", "💎", "💠", "👑", "⚜️", "🏆"];
+
+export function getPrestigeData(): PrestigeData {
+  try {
+    const raw = localStorage.getItem(PRESTIGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { rank: 0, totalPrestiges: 0, bonusCoinsPerGame: 0, bonusXPPercent: 0 };
+}
+
+function savePrestigeData(data: PrestigeData) {
+  localStorage.setItem(PRESTIGE_KEY, JSON.stringify(data));
+}
+
+export function canPrestige(): boolean {
+  const xp = getXPData();
+  return xp.level >= MAX_LEVEL;
+}
+
+export function doPrestige(): { newPrestige: PrestigeData; message: string } {
+  if (!canPrestige()) throw new Error("Must be max level to prestige");
+  
+  const prestige = getPrestigeData();
+  prestige.totalPrestiges++;
+  prestige.rank = Math.min(prestige.totalPrestiges, PRESTIGE_RANKS.length);
+  prestige.bonusCoinsPerGame = prestige.totalPrestiges * 5;
+  prestige.bonusXPPercent = prestige.totalPrestiges * 10;
+  savePrestigeData(prestige);
+  
+  // Reset XP/level
+  localStorage.removeItem(XP_KEY);
+  
+  const rankName = getPrestigeRankName(prestige.rank);
+  return { newPrestige: prestige, message: `Prestige ${prestige.totalPrestiges}! You are now ${rankName} rank.` };
+}
+
+export function getPrestigeRankName(rank: number): string {
+  if (rank <= 0) return "None";
+  return PRESTIGE_RANKS[Math.min(rank - 1, PRESTIGE_RANKS.length - 1)];
+}
+
+export function getPrestigeRankIcon(rank: number): string {
+  if (rank <= 0) return "";
+  return PRESTIGE_ICONS[Math.min(rank - 1, PRESTIGE_ICONS.length - 1)];
+}
+
+export function resetPrestigeData() {
+  localStorage.removeItem(PRESTIGE_KEY);
 }

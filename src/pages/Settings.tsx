@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { getSettings, saveSettings, resetSettings, getKeyLabel, type GameSettings } from "@/lib/settings";
 import { soundEngine } from "@/lib/sound";
 import { getLifetimeStats, resetLifetimeStats } from "@/lib/stats";
-import { resetXPData } from "@/lib/xp";
+import { resetXPData, resetPrestigeData } from "@/lib/xp";
 
 const DIFFICULTY_OPTIONS: { value: GameSettings["difficulty"]; label: string; desc: string }[] = [
   { value: "easy", label: "EASY", desc: "Slower enemies, less damage" },
@@ -135,10 +135,11 @@ const Settings = () => {
             </div>
             <button
               onClick={() => {
-                if (confirm("Reset all lifetime stats & XP? This cannot be undone.")) {
+                if (confirm("Reset all lifetime stats, XP & prestige? This cannot be undone.")) {
                   resetLifetimeStats();
                   resetXPData();
-                  alert("Stats & XP reset!");
+                  resetPrestigeData();
+                  alert("Stats, XP & prestige reset!");
                 }
               }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30 transition-all font-display text-xs"
