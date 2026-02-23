@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { saveScore } from "@/lib/auth";
 
 interface GameOverModalProps {
   score: number;
@@ -9,16 +10,8 @@ interface GameOverModalProps {
 const GameOverModal = ({ score, onRestart }: GameOverModalProps) => {
   const navigate = useNavigate();
 
-  // Save to local leaderboard
-  const saveScore = () => {
-    const scores = JSON.parse(localStorage.getItem("skyfire-scores") || "[]");
-    scores.push({ score, date: new Date().toISOString(), player: "Player" });
-    scores.sort((a: { score: number }, b: { score: number }) => b.score - a.score);
-    localStorage.setItem("skyfire-scores", JSON.stringify(scores.slice(0, 50)));
-  };
-
-  // Save on mount
-  if (score > 0) saveScore();
+  // Save via auth system
+  if (score > 0) saveScore(score);
 
   return (
     <motion.div
