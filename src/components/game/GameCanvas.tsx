@@ -6,14 +6,16 @@ import { Volume2, VolumeX } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getSkin, type ShipSkin } from "@/lib/skins";
 import { getSettings, DIFFICULTY_MULTIPLIERS } from "@/lib/settings";
+import { getUpgrades, getStatBonuses, WEAPONS, type WeaponType } from "@/lib/upgrades";
 
 interface Player { x: number; y: number; width: number; height: number; speed: number; }
-interface Bullet { x: number; y: number; width: number; height: number; speed: number; }
+interface Bullet { x: number; y: number; width: number; height: number; speed: number; damage: number; angle?: number; homing?: boolean; targetId?: number; }
 interface EnemyBullet { x: number; y: number; width: number; height: number; speed: number; angle: number; }
 interface Enemy {
   x: number; y: number; width: number; height: number; speed: number; health: number; maxHealth: number;
   type: "normal" | "fast" | "tank" | "boss";
   lastShot: number;
+  id: number;
 }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number; }
 interface Star { x: number; y: number; speed: number; size: number; brightness: number; }
@@ -35,11 +37,15 @@ const POWERUP_LABELS: Record<string, string> = {
 const ENEMY_COLORS: Record<string, string> = {
   normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000",
 };
+const WEAPON_COLORS: Record<WeaponType, string> = {
+  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00",
+};
 
-// Enemy shoot intervals (ms)
 const ENEMY_SHOOT_INTERVALS: Record<string, number> = {
   normal: 3000, fast: 4000, tank: 2000, boss: 800,
 };
+
+let enemyIdCounter = 0;
 
 const GameCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,7 +61,7 @@ const GameCanvas = () => {
     stars: [] as Star[],
     powerUps: [] as PowerUp[],
     trailParticles: [] as TrailParticle[],
-    score: 0, health: 100, shield: 0, rapidFire: 0, multiShot: 0,
+    score: 0, health: 100, maxHealth: 100, shield: 0, rapidFire: 0, multiShot: 0,
     gameOver: false, paused: false,
     keys: {} as Record<string, boolean>,
     touchMove: { dx: 0, dy: 0 }, touchFiring: false,
@@ -66,8 +72,14 @@ const GameCanvas = () => {
     shakeIntensity: 0, shakeDecay: 0.9,
     difficultyMult: DIFFICULTY_MULTIPLIERS["normal"],
     keyBindings: getSettings().keyBindings,
-    // Combo system
     combo: 0, comboTimer: 0, maxCombo: 0, comboMultiplier: 1,
+    // Weapon system
+    currentWeapon: "laser" as WeaponType,
+    unlockedWeapons: ["laser"] as WeaponType[],
+    weaponFireRate: 150,
+    weaponDamage: 1,
+    // Upgrade bonuses
+    speedBonus: 0, fireRateMult: 1, damageBonus: 0, shieldDurBonus: 0,
   });
   const animFrameRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -81,6 +93,7 @@ const GameCanvas = () => {
   const [waveAnnounce, setWaveAnnounce] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [maxMultiplier, setMaxMultiplier] = useState(1);
+  const [currentWeapon, setCurrentWeapon] = useState<WeaponType>("laser");
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -136,13 +149,13 @@ const GameCanvas = () => {
       type = "tank"; w = 45; h = 45; speed = (0.8 + gs.difficulty * 0.15) * dm.speed; hp = Math.round((4 + Math.floor(gs.difficulty)) * dm.health);
     }
 
-    gs.enemies.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -h - 10, width: w, height: h, speed, health: hp, maxHealth: hp, type, lastShot: Date.now() });
+    gs.enemies.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -h - 10, width: w, height: h, speed, health: hp, maxHealth: hp, type, lastShot: Date.now(), id: enemyIdCounter++ });
   };
 
   const spawnBoss = () => {
     const gs = gameStateRef.current;
     const hp = Math.round((30 + gs.wave * 10) * gs.difficultyMult.health);
-    gs.enemies.push({ x: CANVAS_WIDTH / 2 - 50, y: -100, width: 100, height: 80, speed: 0.5, health: hp, maxHealth: hp, type: "boss", lastShot: Date.now() });
+    gs.enemies.push({ x: CANVAS_WIDTH / 2 - 50, y: -100, width: 100, height: 80, speed: 0.5, health: hp, maxHealth: hp, type: "boss", lastShot: Date.now(), id: enemyIdCounter++ });
     gs.bossActive = true;
   };
 
@@ -163,13 +176,53 @@ const GameCanvas = () => {
     const speed = e.type === "boss" ? 4 : 3;
 
     if (e.type === "boss") {
-      // Boss shoots 3 bullets in spread
       for (let i = -1; i <= 1; i++) {
         gs.enemyBullets.push({ x: cx - 3, y: cy, width: 6, height: 6, speed, angle: angle + i * 0.3 });
       }
     } else {
       gs.enemyBullets.push({ x: cx - 2, y: cy, width: 4, height: 4, speed, angle });
     }
+  };
+
+  const switchWeapon = (weapon: WeaponType) => {
+    const gs = gameStateRef.current;
+    if (!gs.unlockedWeapons.includes(weapon)) return;
+    gs.currentWeapon = weapon;
+    const def = WEAPONS.find(w => w.id === weapon)!;
+    gs.weaponFireRate = def.fireRate;
+    gs.weaponDamage = def.damage;
+    setCurrentWeapon(weapon);
+  };
+
+  const shootWeapon = () => {
+    const gs = gameStateRef.current;
+    const p = gs.player;
+    const dmgBonus = gs.damageBonus;
+    const cx = p.x + p.width / 2;
+
+    switch (gs.currentWeapon) {
+      case "laser":
+        gs.bullets.push({ x: cx - 2, y: p.y, width: 4, height: 12, speed: 8, damage: 1 + dmgBonus });
+        break;
+      case "spread":
+        for (let i = -1; i <= 1; i++) {
+          gs.bullets.push({ x: cx - 2 + i * 10, y: p.y + Math.abs(i) * 5, width: 4, height: 10, speed: 7, damage: 1 + dmgBonus, angle: i * 0.15 });
+        }
+        break;
+      case "homing": {
+        // Find nearest enemy
+        let nearest: Enemy | null = null;
+        let minDist = Infinity;
+        gs.enemies.forEach(e => {
+          const d = Math.sqrt((e.x + e.width / 2 - cx) ** 2 + (e.y + e.height / 2 - p.y) ** 2);
+          if (d < minDist) { minDist = d; nearest = e; }
+        });
+        gs.bullets.push({ x: cx - 3, y: p.y, width: 6, height: 10, speed: 6, damage: 2 + dmgBonus, homing: true, targetId: nearest?.id });
+        break;
+      }
+    }
+    gs.lastShot = Date.now();
+    soundEngine.shoot();
   };
 
   const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, shielded: boolean) => {
@@ -336,7 +389,7 @@ const GameCanvas = () => {
 
     // Player movement
     const p = gs.player;
-    const spd = p.speed;
+    const spd = p.speed + gs.speedBonus;
     if (gs.keys[kb.left] || gs.keys["a"]) p.x -= spd;
     if (gs.keys[kb.right] || gs.keys["d"]) p.x += spd;
     if (gs.keys[kb.up] || gs.keys["w"]) p.y -= spd;
@@ -358,30 +411,58 @@ const GameCanvas = () => {
 
     // Shooting
     const now = Date.now();
-    const interval = gs.rapidFire > 0 ? 80 : gs.shotInterval;
+    const baseInterval = gs.rapidFire > 0 ? 80 : gs.weaponFireRate;
+    const interval = baseInterval * gs.fireRateMult;
     const firing = gs.keys[kb.shoot] || gs.touchFiring;
     if (firing && now - gs.lastShot > interval) {
+      // If multiShot powerup active, override with spread regardless of weapon
       if (gs.multiShot > 0) {
-        gs.bullets.push({ x: p.x + p.width / 2 - 2, y: p.y, width: 4, height: 12, speed: 8 });
-        gs.bullets.push({ x: p.x + p.width / 2 - 12, y: p.y + 5, width: 4, height: 12, speed: 8 });
-        gs.bullets.push({ x: p.x + p.width / 2 + 8, y: p.y + 5, width: 4, height: 12, speed: 8 });
+        const dmg = 1 + gs.damageBonus;
+        gs.bullets.push({ x: p.x + p.width / 2 - 2, y: p.y, width: 4, height: 12, speed: 8, damage: dmg });
+        gs.bullets.push({ x: p.x + p.width / 2 - 12, y: p.y + 5, width: 4, height: 12, speed: 8, damage: dmg });
+        gs.bullets.push({ x: p.x + p.width / 2 + 8, y: p.y + 5, width: 4, height: 12, speed: 8, damage: dmg });
+        gs.lastShot = now;
+        soundEngine.shoot();
       } else {
-        gs.bullets.push({ x: p.x + p.width / 2 - 2, y: p.y, width: 4, height: 12, speed: 8 });
+        shootWeapon();
       }
-      gs.lastShot = now;
-      soundEngine.shoot();
     }
 
     // Player bullets
     gs.bullets = gs.bullets.filter((b) => {
-      b.y -= b.speed;
+      // Homing logic
+      if (b.homing && b.targetId !== undefined) {
+        const target = gs.enemies.find(e => e.id === b.targetId);
+        if (target) {
+          const tx = target.x + target.width / 2 - b.x;
+          const ty = target.y + target.height / 2 - b.y;
+          const a = Math.atan2(ty, tx);
+          b.x += Math.cos(a) * b.speed;
+          b.y += Math.sin(a) * b.speed;
+        } else {
+          b.y -= b.speed;
+        }
+      } else if (b.angle) {
+        b.x += Math.sin(b.angle) * b.speed;
+        b.y -= Math.cos(b.angle) * b.speed * 0.95;
+      } else {
+        b.y -= b.speed;
+      }
+
       ctx.save();
-      ctx.fillStyle = gs.multiShot > 0 ? "#ff66ff" : gs.rapidFire > 0 ? "#ffcc00" : skin.bulletColor;
-      ctx.shadowColor = ctx.fillStyle;
+      const wColor = gs.multiShot > 0 ? "#ff66ff" : gs.rapidFire > 0 ? "#ffcc00" : WEAPON_COLORS[gs.currentWeapon];
+      ctx.fillStyle = wColor;
+      ctx.shadowColor = wColor;
       ctx.shadowBlur = 8;
-      ctx.fillRect(b.x, b.y, b.width, b.height);
+      if (b.homing) {
+        ctx.beginPath();
+        ctx.arc(b.x + b.width / 2, b.y + b.height / 2, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(b.x, b.y, b.width, b.height);
+      }
       ctx.restore();
-      return b.y > -b.height;
+      return b.y > -b.height && b.y < CANVAS_HEIGHT + 10 && b.x > -20 && b.x < CANVAS_WIDTH + 20;
     });
 
     // Enemy spawn
@@ -421,7 +502,7 @@ const GameCanvas = () => {
       }
       drawEnemy(ctx, e);
 
-      // Enemy shooting - only shoot when on screen
+      // Enemy shooting
       if (e.y > 0 && e.y < CANVAS_HEIGHT - 100) {
         const shootInterval = ENEMY_SHOOT_INTERVALS[e.type] / gs.difficultyMult.speed;
         if (now - e.lastShot > shootInterval) {
@@ -434,7 +515,7 @@ const GameCanvas = () => {
         const b = gs.bullets[i];
         if (b.x < e.x + e.width && b.x + b.width > e.x && b.y < e.y + e.height && b.y + b.height > e.y) {
           gs.bullets.splice(i, 1);
-          e.health--;
+          e.health -= b.damage;
           if (e.health <= 0) {
             // Combo system
             gs.combo++;
@@ -483,7 +564,6 @@ const GameCanvas = () => {
           soundEngine.hit();
           triggerShake(10);
           spawnParticles(e.x + e.width / 2, e.y + e.height / 2, "#ffcc00", 8);
-          // Break combo on hit
           gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0;
           if (gs.health <= 0) {
             gs.gameOver = true; setGameOver(true);
@@ -531,7 +611,6 @@ const GameCanvas = () => {
           setHealth(gs.health);
           soundEngine.hit();
           triggerShake(4);
-          // Break combo on hit
           gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0;
           spawnParticles(eb.x, eb.y, "#ff4444", 5);
           if (gs.health <= 0) {
@@ -559,11 +638,12 @@ const GameCanvas = () => {
       if (p.x < pu.x + pu.width && p.x + p.width > pu.x && p.y < pu.y + pu.height && p.y + p.height > pu.y) {
         soundEngine.powerUp();
         spawnParticles(pu.x, pu.y, col, 8);
+        const shieldBase = 600 + gs.shieldDurBonus;
         switch (pu.type) {
-          case "shield": gs.shield = 600; break;
+          case "shield": gs.shield = shieldBase; break;
           case "rapid": gs.rapidFire = 480; break;
           case "multi": gs.multiShot = 360; break;
-          case "health": gs.health = Math.min(100, gs.health + 25); setHealth(gs.health); break;
+          case "health": gs.health = Math.min(gs.maxHealth, gs.health + 25); setHealth(gs.health); break;
         }
         return false;
       }
@@ -605,7 +685,7 @@ const GameCanvas = () => {
     ctx.strokeStyle = skin.glowColor;
     ctx.lineWidth = 1;
     ctx.strokeRect(10, 10, 120, 16);
-    const healthPct = Math.max(0, gs.health) / 100;
+    const healthPct = Math.max(0, gs.health) / gs.maxHealth;
     ctx.fillStyle = healthPct > 0.5 ? "#00ff66" : healthPct > 0.25 ? "#ffcc00" : "#ff3333";
     ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8;
     ctx.fillRect(12, 12, 116 * healthPct, 12);
@@ -627,6 +707,15 @@ const GameCanvas = () => {
     ctx.font = "10px Orbitron";
     ctx.fillStyle = "rgba(255,255,255,0.4)";
     ctx.fillText(`WAVE ${gs.wave}`, CANVAS_WIDTH / 2, 20);
+
+    // Weapon indicator
+    const weaponDef = WEAPONS.find(w => w.id === gs.currentWeapon)!;
+    ctx.font = "9px Orbitron";
+    ctx.fillStyle = WEAPON_COLORS[gs.currentWeapon];
+    ctx.shadowColor = WEAPON_COLORS[gs.currentWeapon]; ctx.shadowBlur = 5;
+    ctx.textAlign = "left";
+    ctx.fillText(`${weaponDef.icon} ${weaponDef.name}`, 12, 52);
+    ctx.shadowBlur = 0;
 
     // Combo indicator
     if (gs.combo >= 2) {
@@ -667,21 +756,17 @@ const GameCanvas = () => {
     ctx.strokeStyle = "rgba(0, 255, 200, 0.2)";
     ctx.lineWidth = 1;
     ctx.strokeRect(radarX, radarY, radarW, radarH);
-    // Player dot
     ctx.fillStyle = "#00ffcc";
     ctx.fillRect(radarX + p.x * scaleX, radarY + p.y * scaleY, 3, 3);
-    // Enemy dots
     gs.enemies.forEach((e) => {
       ctx.fillStyle = ENEMY_COLORS[e.type];
       const sz = e.type === "boss" ? 4 : 2;
       ctx.fillRect(radarX + e.x * scaleX, radarY + e.y * scaleY, sz, sz);
     });
-    // Enemy bullets on radar
     gs.enemyBullets.forEach((eb) => {
       ctx.fillStyle = "rgba(255, 68, 68, 0.6)";
       ctx.fillRect(radarX + eb.x * scaleX, radarY + eb.y * scaleY, 1, 1);
     });
-    // Radar label
     ctx.font = "7px Orbitron";
     ctx.fillStyle = "rgba(0, 255, 200, 0.4)";
     ctx.textAlign = "center";
@@ -696,14 +781,29 @@ const GameCanvas = () => {
     const gs = gameStateRef.current;
     const user = getCurrentUser();
     const settings = getSettings();
+    const upgData = getUpgrades();
+    const bonuses = getStatBonuses();
     skinRef.current = getSkin(user?.selectedSkin || "default");
     gs.difficultyMult = DIFFICULTY_MULTIPLIERS[settings.difficulty];
     gs.keyBindings = settings.keyBindings;
     soundEngine.setVolume(settings.volume / 100);
 
+    // Apply upgrades
+    gs.maxHealth = bonuses.maxHealth;
+    gs.speedBonus = bonuses.speedBonus;
+    gs.fireRateMult = bonuses.fireRateMult;
+    gs.damageBonus = bonuses.damageBonus;
+    gs.shieldDurBonus = bonuses.shieldDurBonus;
+    gs.unlockedWeapons = upgData.unlockedWeapons;
+    gs.currentWeapon = upgData.equippedWeapon;
+    const weaponDef = WEAPONS.find(w => w.id === gs.currentWeapon)!;
+    gs.weaponFireRate = weaponDef.fireRate;
+    gs.weaponDamage = weaponDef.damage;
+    setCurrentWeapon(gs.currentWeapon);
+
     gs.player = { x: CANVAS_WIDTH / 2 - 20, y: CANVAS_HEIGHT - 80, width: 40, height: 50, speed: 5 };
     gs.bullets = []; gs.enemyBullets = []; gs.enemies = []; gs.particles = []; gs.powerUps = []; gs.trailParticles = [];
-    gs.score = 0; gs.health = 100; gs.shield = 0; gs.rapidFire = 0; gs.multiShot = 0;
+    gs.score = 0; gs.health = gs.maxHealth; gs.shield = 0; gs.rapidFire = 0; gs.multiShot = 0;
     gs.gameOver = false; gs.paused = false;
     gs.lastEnemySpawn = 0; gs.spawnInterval = 1500; gs.difficulty = 1; gs.frameCount = 0; gs.lastShot = 0;
     gs.touchMove = { dx: 0, dy: 0 }; gs.touchFiring = false;
@@ -711,7 +811,7 @@ const GameCanvas = () => {
     gs.waveTransition = false; gs.waveTransitionTimer = 0;
     gs.shakeIntensity = 0;
     gs.combo = 0; gs.comboTimer = 0; gs.maxCombo = 0; gs.comboMultiplier = 1;
-    setScore(0); setHealth(100); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0); setMaxCombo(0); setMaxMultiplier(1);
+    setScore(0); setHealth(gs.maxHealth); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0); setMaxCombo(0); setMaxMultiplier(1);
     initStars();
     soundEngine.startMusic();
   }, [initStars]);
@@ -734,6 +834,11 @@ const GameCanvas = () => {
         gameStateRef.current.paused = !gameStateRef.current.paused;
         setPaused(gameStateRef.current.paused);
       }
+      // Weapon switching with 1, 2, 3
+      const gs = gameStateRef.current;
+      if (e.key === "1" && gs.unlockedWeapons.includes("laser")) switchWeapon("laser");
+      if (e.key === "2" && gs.unlockedWeapons.includes("spread")) switchWeapon("spread");
+      if (e.key === "3" && gs.unlockedWeapons.includes("homing")) switchWeapon("homing");
     };
     const handleKeyUp = (e: KeyboardEvent) => { gameStateRef.current.keys[e.key] = false; };
     window.addEventListener("keydown", handleKeyDown);
@@ -780,7 +885,7 @@ const GameCanvas = () => {
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg" style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
           <h2 className="font-display text-3xl text-glow-cyan mb-4 text-primary">READY?</h2>
           <p className="text-muted-foreground mb-2 text-sm font-body">Arrow keys to move • Space to shoot</p>
-          <p className="text-muted-foreground mb-2 text-xs font-body">P to pause • Boss every 10 waves!</p>
+          <p className="text-muted-foreground mb-2 text-xs font-body">P to pause • 1/2/3 to switch weapons</p>
           <p className="text-muted-foreground mb-6 text-xs font-body">Chain kills for combo multiplier!</p>
           <button onClick={startGame} className="px-8 py-3 bg-primary text-primary-foreground font-display text-lg rounded-lg box-glow-cyan hover:scale-105 transition-transform">
             START GAME

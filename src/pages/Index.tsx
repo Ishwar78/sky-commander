@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 
@@ -82,6 +82,9 @@ const Index = () => {
             </button>
             <button onClick={() => navigate("/leaderboard")} className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-body text-sm">
               <Trophy className="w-4 h-4" /> Leaderboard
+            </button>
+            <button onClick={() => navigate("/upgrades")} className="flex items-center gap-2 text-muted-foreground hover:text-[hsl(var(--neon-yellow))] transition-colors font-body text-sm">
+              <Rocket className="w-4 h-4" /> Upgrades
             </button>
             <button onClick={() => navigate("/settings")} className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-body text-sm">
               <Settings className="w-4 h-4" /> Settings
