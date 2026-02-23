@@ -79,6 +79,8 @@ const GameCanvas = () => {
   const [canvasScale, setCanvasScale] = useState(1);
   const [wave, setWave] = useState(1);
   const [waveAnnounce, setWaveAnnounce] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [maxMultiplier, setMaxMultiplier] = useState(1);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -436,9 +438,15 @@ const GameCanvas = () => {
           if (e.health <= 0) {
             // Combo system
             gs.combo++;
-            gs.comboTimer = 120; // ~2 seconds at 60fps
-            gs.comboMultiplier = 1 + Math.floor(gs.combo / 3) * 0.5; // +0.5x every 3 kills
-            if (gs.combo > gs.maxCombo) gs.maxCombo = gs.combo;
+            gs.comboTimer = 120;
+            gs.comboMultiplier = 1 + Math.floor(gs.combo / 3) * 0.5;
+            if (gs.combo > gs.maxCombo) {
+              gs.maxCombo = gs.combo;
+              setMaxCombo(gs.maxCombo);
+            }
+            if (gs.comboMultiplier > maxMultiplier) {
+              setMaxMultiplier(gs.comboMultiplier);
+            }
 
             const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "fast" ? 15 : 10;
             const pts = Math.round(basePts * gs.comboMultiplier);
@@ -650,6 +658,35 @@ const GameCanvas = () => {
       ctx.shadowBlur = 0;
     }
 
+    // Minimap radar
+    const radarW = 70, radarH = 100;
+    const radarX = CANVAS_WIDTH - radarW - 10, radarY = CANVAS_HEIGHT - radarH - 28;
+    const scaleX = radarW / CANVAS_WIDTH, scaleY = radarH / CANVAS_HEIGHT;
+    ctx.fillStyle = "rgba(0, 10, 20, 0.7)";
+    ctx.fillRect(radarX, radarY, radarW, radarH);
+    ctx.strokeStyle = "rgba(0, 255, 200, 0.2)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(radarX, radarY, radarW, radarH);
+    // Player dot
+    ctx.fillStyle = "#00ffcc";
+    ctx.fillRect(radarX + p.x * scaleX, radarY + p.y * scaleY, 3, 3);
+    // Enemy dots
+    gs.enemies.forEach((e) => {
+      ctx.fillStyle = ENEMY_COLORS[e.type];
+      const sz = e.type === "boss" ? 4 : 2;
+      ctx.fillRect(radarX + e.x * scaleX, radarY + e.y * scaleY, sz, sz);
+    });
+    // Enemy bullets on radar
+    gs.enemyBullets.forEach((eb) => {
+      ctx.fillStyle = "rgba(255, 68, 68, 0.6)";
+      ctx.fillRect(radarX + eb.x * scaleX, radarY + eb.y * scaleY, 1, 1);
+    });
+    // Radar label
+    ctx.font = "7px Orbitron";
+    ctx.fillStyle = "rgba(0, 255, 200, 0.4)";
+    ctx.textAlign = "center";
+    ctx.fillText("RADAR", radarX + radarW / 2, radarY + radarH + 8);
+
     ctx.restore(); // end shake
 
     animFrameRef.current = requestAnimationFrame(gameLoop);
@@ -674,7 +711,7 @@ const GameCanvas = () => {
     gs.waveTransition = false; gs.waveTransitionTimer = 0;
     gs.shakeIntensity = 0;
     gs.combo = 0; gs.comboTimer = 0; gs.maxCombo = 0; gs.comboMultiplier = 1;
-    setScore(0); setHealth(100); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0);
+    setScore(0); setHealth(100); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0); setMaxCombo(0); setMaxMultiplier(1);
     initStars();
     soundEngine.startMusic();
   }, [initStars]);
@@ -758,7 +795,7 @@ const GameCanvas = () => {
         </div>
       )}
 
-      {gameOver && <GameOverModal score={score} onRestart={startGame} />}
+      {gameOver && <GameOverModal score={score} maxCombo={maxCombo} maxMultiplier={maxMultiplier} wave={wave} onRestart={startGame} />}
 
       {gameStarted && !gameOver && !paused && (
         <TouchControls onMove={handleTouchMove} onFire={handleTouchFire} />
