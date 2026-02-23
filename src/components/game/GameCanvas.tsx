@@ -855,10 +855,29 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
 
   const unlockedWeapons = gameStateRef.current.unlockedWeapons;
 
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const gs = gameStateRef.current;
+    if (!gameStarted || gs.gameOver || gs.paused) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = CANVAS_WIDTH / rect.width;
+    const scaleY = CANVAS_HEIGHT / rect.height;
+    const clickX = (e.clientX - rect.left) * scaleX;
+    const clickY = (e.clientY - rect.top) * scaleY;
+    const p = gs.player;
+    // Check if click is near the ship (generous hitbox)
+    const dx = clickX - (p.x + p.width / 2);
+    const dy = clickY - (p.y + p.height / 2);
+    if (Math.abs(dx) < 60 && Math.abs(dy) < 60) {
+      shootWeapon();
+    }
+  }, [gameStarted, shootWeapon]);
+
   return (
     <div ref={containerRef} className="relative flex flex-col items-center w-full">
       <div style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
-        <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} className="rounded-lg neon-border box-glow-cyan" style={{ imageRendering: "pixelated" }} />
+        <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} onClick={handleCanvasClick} className="rounded-lg neon-border box-glow-cyan cursor-crosshair" style={{ imageRendering: "pixelated" }} />
       </div>
 
       {gameStarted && (
