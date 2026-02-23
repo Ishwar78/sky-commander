@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles, Download } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles, Download, Users } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
+import DailyRewardsCalendar from "@/components/DailyRewardsCalendar";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -103,7 +104,7 @@ const Index = () => {
             Dodge enemy fire. Destroy invaders. Climb the leaderboard.
           </p>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3 justify-center">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -121,6 +122,15 @@ const Index = () => {
             >
               <Skull className="w-5 h-5" />
               BOSS RUSH
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/pvp")}
+              className="inline-flex items-center gap-3 px-6 py-4 bg-accent text-accent-foreground font-display text-lg rounded-xl hover:shadow-[0_0_30px_hsl(var(--accent)/0.4)] transition-shadow"
+            >
+              <Users className="w-5 h-5" />
+              PVP
             </motion.button>
           </div>
 
@@ -186,6 +196,8 @@ const Index = () => {
             ))}
           </div>
         </motion.div>
+
+        <DailyRewardsCalendar />
 
         {topScores.length > 0 && (
           <motion.div

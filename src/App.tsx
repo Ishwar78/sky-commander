@@ -19,6 +19,7 @@ import Profile from "./pages/Profile";
 import Challenges from "./pages/Challenges";
 import CosmeticShop from "./pages/CosmeticShop";
 import PowerUpShop from "./pages/PowerUpShop";
+import PvPPage from "./pages/PvPPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/challenges" element={<Challenges />} />
           <Route path="/cosmetics" element={<CosmeticShop />} />
           <Route path="/powerups" element={<PowerUpShop />} />
+          <Route path="/pvp" element={<PvPPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
