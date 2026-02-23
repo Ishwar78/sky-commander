@@ -91,7 +91,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     unlockedWeapons: ["laser"] as WeaponType[],
     weaponFireRate: 150,
     weaponDamage: 1,
-    speedBonus: 0, fireRateMult: 1, damageBonus: 0, shieldDurBonus: 0,
+    speedBonus: 0, fireRateMult: 1, damageBonus: 0, shieldDurBonus: 0, beamHeatMax: 120,
     bossKilledThisGame: false,
     noDamageKills: 0,
     totalKills: 0,
@@ -345,6 +345,26 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       ctx.lineWidth = 2; ctx.shadowColor = "#00ccff"; ctx.shadowBlur = 15;
       ctx.beginPath(); ctx.arc(p.x + p.width / 2, p.y + p.height / 2, 35, 0, Math.PI * 2); ctx.stroke();
     }
+    // Beam heat warning: red glow + smoke particles when heat > 80%
+    const gs = gameStateRef.current;
+    if (gs.currentWeapon === "beam" && gs.beamHeat > gs.beamHeatMax * 0.8) {
+      const heatRatio = gs.beamHeat / gs.beamHeatMax;
+      const intensity = (heatRatio - 0.8) / 0.2; // 0 to 1
+      // Pulsing red glow around ship
+      const glowAlpha = 0.3 + intensity * 0.5 + Math.sin(gs.frameCount * 0.5) * 0.15;
+      ctx.shadowColor = `rgba(255, ${Math.floor(60 - intensity * 60)}, 0, 1)`;
+      ctx.shadowBlur = 25 + intensity * 25;
+      ctx.fillStyle = `rgba(255, ${Math.floor(80 - intensity * 80)}, 0, ${glowAlpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x + p.width / 2, p.y + p.height / 2, 28 + intensity * 8, 0, Math.PI * 2);
+      ctx.fill();
+      // Smoke particles rising from ship
+      if (gs.frameCount % (3 - Math.floor(intensity * 2)) === 0) {
+        const smokeX = p.x + p.width / 2 + (Math.random() - 0.5) * 20;
+        const smokeY = p.y + p.height * 0.6;
+        spawnParticles(smokeX, smokeY, gs.beamOverheated ? "#ff2200" : "#ff880088", 1);
+      }
+    }
     ctx.restore();
   };
 
@@ -594,8 +614,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         }
         // Accumulate heat at full charge
         if (gs.beamCharge >= 180) {
-          gs.beamHeat = Math.min(120, gs.beamHeat + 1);
-          if (gs.beamHeat >= 120) {
+          gs.beamHeat = Math.min(gs.beamHeatMax, gs.beamHeat + 1);
+          if (gs.beamHeat >= gs.beamHeatMax) {
             gs.beamOverheated = true;
             gs.beamCooldown = 90; // 1.5s cooldown
             gs.shakeIntensity = 8; // big shake on overheat
@@ -899,7 +919,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     // Beam charge bar (only when beam weapon equipped)
     if (gs.currentWeapon === "beam") {
       const charge = gs.beamCharge / 180;
-      const heat = gs.beamHeat / 120;
+      const heat = gs.beamHeat / gs.beamHeatMax;
       const overheated = gs.beamOverheated;
 
       // Charge bar
@@ -1024,7 +1044,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
 
     gs.maxHealth = bonuses.maxHealth; gs.speedBonus = bonuses.speedBonus;
     gs.fireRateMult = bonuses.fireRateMult; gs.damageBonus = bonuses.damageBonus;
-    gs.shieldDurBonus = bonuses.shieldDurBonus; gs.unlockedWeapons = upgData.unlockedWeapons;
+    gs.shieldDurBonus = bonuses.shieldDurBonus; gs.beamHeatMax = bonuses.beamHeatMax;
+    gs.unlockedWeapons = upgData.unlockedWeapons;
     gs.currentWeapon = upgData.equippedWeapon;
     const weaponDef = WEAPONS.find(w => w.id === gs.currentWeapon)!;
     gs.weaponFireRate = weaponDef.fireRate; gs.weaponDamage = weaponDef.damage;
