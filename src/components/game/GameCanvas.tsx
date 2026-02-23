@@ -103,6 +103,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     doubleScoreTimer: 0,
     armorTimer: 0,
     magnetActive: false,
+    tapRipples: [] as { x: number; y: number; life: number; maxLife: number }[],
   });
   const animFrameRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -673,6 +674,32 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     gs.particles = gs.particles.filter((pt) => { pt.x += pt.vx; pt.y += pt.vy; pt.life--; const alpha = pt.life / pt.maxLife; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = pt.color; ctx.shadowColor = pt.color; ctx.shadowBlur = 5; ctx.fillRect(pt.x, pt.y, pt.size, pt.size); ctx.restore(); return pt.life > 0; });
     gs.trailParticles = gs.trailParticles.filter((tp) => { tp.life--; const alpha = tp.life / tp.maxLife; ctx.save(); ctx.globalAlpha = Math.max(0, alpha * 0.6); const trailCol = gs.cosmeticTrailColor || skin.engineColor; ctx.fillStyle = trailCol; ctx.shadowColor = trailCol; ctx.shadowBlur = 4; ctx.beginPath(); ctx.arc(tp.x, tp.y + (tp.maxLife - tp.life) * 0.5, Math.max(0.1, tp.size * alpha), 0, Math.PI * 2); ctx.fill(); ctx.restore(); return tp.life > 0; });
 
+    // Tap ripple indicators
+    gs.tapRipples = gs.tapRipples.filter((r) => {
+      r.life--;
+      const progress = 1 - r.life / r.maxLife;
+      const radius = 8 + progress * 28;
+      const alpha = (1 - progress) * 0.7;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "#00ffcc";
+      ctx.shadowColor = "#00ffcc";
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = 2 - progress * 1.5;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      // Inner dot
+      if (progress < 0.3) {
+        ctx.fillStyle = "#00ffcc";
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      return r.life > 0;
+    });
+
     drawPlayer(ctx, p, gs.shield > 0);
 
     // HUD
@@ -865,13 +892,10 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     const scaleY = CANVAS_HEIGHT / rect.height;
     const clickX = (e.clientX - rect.left) * scaleX;
     const clickY = (e.clientY - rect.top) * scaleY;
-    const p = gs.player;
-    // Check if click is near the ship (generous hitbox)
-    const dx = clickX - (p.x + p.width / 2);
-    const dy = clickY - (p.y + p.height / 2);
-    if (Math.abs(dx) < 60 && Math.abs(dy) < 60) {
-      shootWeapon();
-    }
+    // Shoot from anywhere on canvas
+    shootWeapon();
+    // Add tap ripple at click position
+    gs.tapRipples.push({ x: clickX, y: clickY, life: 20, maxLife: 20 });
   }, [gameStarted, shootWeapon]);
 
   return (
