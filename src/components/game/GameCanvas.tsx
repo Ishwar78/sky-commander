@@ -569,7 +569,16 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     if (gs.currentWeapon === "beam") {
       if (firing) {
         gs.beamActive = true;
+        const wasFull = gs.beamCharge >= 180;
         gs.beamCharge = Math.min(180, gs.beamCharge + 1);
+        // Shake on reaching full charge
+        if (!wasFull && gs.beamCharge >= 180) {
+          gs.shakeIntensity = 6;
+        }
+        // Continuous subtle shake at full charge
+        if (gs.beamCharge >= 180 && gs.shakeIntensity < 1.5) {
+          gs.shakeIntensity = 1.5;
+        }
       } else {
         gs.beamActive = false;
         gs.beamCharge = Math.max(0, gs.beamCharge - 4); // decay quickly
