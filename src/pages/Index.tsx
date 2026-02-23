@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
@@ -128,6 +128,8 @@ const Index = () => {
               { path: "/leaderboard", icon: <Trophy className="w-5 h-5" />, label: "Leaderboard", color: "text-primary" },
               { path: "/upgrades", icon: <Rocket className="w-5 h-5" />, label: "Upgrades", color: "text-[hsl(var(--neon-yellow))]" },
               { path: "/achievements", icon: <Award className="w-5 h-5" />, label: "Achievements", color: "text-accent" },
+              { path: "/challenges", icon: <Swords className="w-5 h-5" />, label: "Challenges", color: "text-[hsl(var(--neon-pink))]" },
+              { path: "/cosmetics", icon: <Sparkles className="w-5 h-5" />, label: "Cosmetics", color: "text-accent" },
               { path: "/shop", icon: <ShoppingCart className="w-5 h-5" />, label: "Coin Shop", color: "text-[hsl(var(--neon-yellow))]" },
               { path: "/profile", icon: <UserCircle className="w-5 h-5" />, label: "Profile", color: "text-primary" },
               { path: "/settings", icon: <Settings className="w-5 h-5" />, label: "Settings", color: "text-primary" },
