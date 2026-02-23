@@ -48,7 +48,7 @@ const ENEMY_COLORS: Record<string, string> = {
   normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000", shield: "#00aaff", stealth: "#88ffbb", splitter: "#ff88cc", mini: "#ff88cc",
 };
 const WEAPON_COLORS: Record<WeaponType, string> = {
-  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00", triple: "#66ffff",
+  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00", triple: "#66ffff", beam: "#ff4444",
 };
 
 const ENEMY_SHOOT_INTERVALS: Record<string, number> = {
@@ -107,6 +107,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     magnetActive: false,
     speedBoostTimer: 0,
     doubleBulletTimer: 0,
+    beamActive: false,
+    beamDamageAccum: 0,
     tapRipples: [] as { x: number; y: number; life: number; maxLife: number }[],
     aimTarget: null as { x: number; y: number } | null,
     holdFiring: false,
@@ -303,6 +305,10 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         for (let i = -1; i <= 1; i++) {
           gs.bullets.push({ x: cx - 2 + i * 8, y: p.y + Math.abs(i) * 3, width: 4, height: 10, speed: 8, damage: 1 + dmgBonus, angle: i * 0.05 + aimAngle * 0.6 });
         }
+        break;
+      case "beam":
+        // Beam doesn't fire bullets — it's handled in the game loop
+        gs.beamActive = true;
         break;
     }
     gs.lastShot = Date.now();
@@ -557,6 +563,41 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
           setTimeout(() => shootWeapon(), 50);
         }
       }
+    }
+
+    // Beam weapon: deactivate when not firing
+    if (gs.currentWeapon === "beam" && !firing) {
+      gs.beamActive = false;
+    }
+
+    // Beam weapon: render beam and deal damage
+    if (gs.beamActive && gs.currentWeapon === "beam") {
+      const bx = p.x + p.width / 2;
+      const beamWidth = 6 + Math.sin(gs.frameCount * 0.3) * 2;
+      const beamColor = gs.cosmeticBulletColor || "#ff4444";
+      ctx.save();
+      const grad = ctx.createLinearGradient(bx, p.y, bx, 0);
+      grad.addColorStop(0, beamColor);
+      grad.addColorStop(0.5, beamColor + "cc");
+      grad.addColorStop(1, beamColor + "44");
+      ctx.fillStyle = grad;
+      ctx.shadowColor = beamColor;
+      ctx.shadowBlur = 15;
+      ctx.fillRect(bx - beamWidth / 2, 0, beamWidth, p.y);
+      ctx.fillStyle = "#ffffff88";
+      ctx.fillRect(bx - 1, 0, 2, p.y);
+      ctx.restore();
+      const beamDmg = (0.3 + gs.damageBonus * 0.15);
+      gs.enemies.forEach(e => {
+        if (e.type === "stealth" && (e.stealthAlpha ?? 1) < 0.3) return;
+        const ex = e.x, ew = e.width;
+        if (bx + beamWidth / 2 > ex && bx - beamWidth / 2 < ex + ew && e.y + e.height > 0 && e.y < p.y) {
+          e.health -= beamDmg;
+          if (gs.frameCount % 4 === 0) {
+            spawnParticles(bx + (Math.random() - 0.5) * 10, e.y + e.height / 2, beamColor, 2);
+          }
+        }
+      });
     }
 
     gs.bullets = gs.bullets.filter((b) => {
