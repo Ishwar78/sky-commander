@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
@@ -120,6 +120,9 @@ const Index = () => {
             </button>
             <button onClick={() => navigate("/upgrades")} className="flex items-center gap-2 text-muted-foreground hover:text-[hsl(var(--neon-yellow))] transition-colors font-body text-sm">
               <Rocket className="w-4 h-4" /> Upgrades
+            </button>
+            <button onClick={() => navigate("/achievements")} className="flex items-center gap-2 text-muted-foreground hover:text-accent transition-colors font-body text-sm">
+              <Award className="w-4 h-4" /> Achievements
             </button>
             <button onClick={() => navigate("/settings")} className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-body text-sm">
               <Settings className="w-4 h-4" /> Settings

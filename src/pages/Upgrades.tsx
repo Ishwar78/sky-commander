@@ -7,6 +7,7 @@ import {
   WEAPONS, UPGRADES, type WeaponType, type PlayerUpgrades,
   getDailyBonusInfo, claimDailyBonus,
 } from "@/lib/upgrades";
+import { checkShopAchievements } from "@/lib/achievements";
 
 const WEAPON_COLORS: Record<WeaponType, string> = {
   laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00",
@@ -113,11 +114,20 @@ const Upgrades = () => {
   };
 
   const handleBuyUpgrade = (id: string) => {
-    if (purchaseUpgrade(id)) refresh();
+    if (purchaseUpgrade(id)) {
+      refresh();
+      const updated = getUpgrades();
+      const def = UPGRADES.find(u => u.id === id);
+      if (def && (updated.levels[id] || 0) >= def.maxLevel) checkShopAchievements("max_upgrade");
+      if (updated.totalCoinsEarned >= 1000) checkShopAchievements("coins_1000");
+    }
   };
 
   const handleBuyWeapon = (id: WeaponType) => {
-    if (purchaseWeapon(id)) refresh();
+    if (purchaseWeapon(id)) {
+      refresh();
+      checkShopAchievements("buy_weapon");
+    }
   };
 
   const handleEquip = (id: WeaponType) => {
