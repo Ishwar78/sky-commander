@@ -5,6 +5,7 @@ import { soundEngine } from "@/lib/sound";
 import { Volume2, VolumeX } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getSkin, type ShipSkin } from "@/lib/skins";
+import { getSettings, DIFFICULTY_MULTIPLIERS } from "@/lib/settings";
 
 interface Player { x: number; y: number; width: number; height: number; speed: number; }
 interface Bullet { x: number; y: number; width: number; height: number; speed: number; }
@@ -18,6 +19,7 @@ interface PowerUp {
   x: number; y: number; width: number; height: number; speed: number;
   type: "shield" | "rapid" | "multi" | "health";
 }
+interface TrailParticle { x: number; y: number; life: number; maxLife: number; size: number; }
 
 const CANVAS_WIDTH = 480;
 const CANVAS_HEIGHT = 700;
@@ -28,7 +30,6 @@ const POWERUP_COLORS: Record<string, string> = {
 const POWERUP_LABELS: Record<string, string> = {
   shield: "🛡️", rapid: "⚡", multi: "🔥", health: "💚",
 };
-
 const ENEMY_COLORS: Record<string, string> = {
   normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000",
 };
@@ -45,6 +46,7 @@ const GameCanvas = () => {
     particles: [] as Particle[],
     stars: [] as Star[],
     powerUps: [] as PowerUp[],
+    trailParticles: [] as TrailParticle[],
     score: 0, health: 100, shield: 0, rapidFire: 0, multiShot: 0,
     gameOver: false, paused: false,
     keys: {} as Record<string, boolean>,
@@ -52,6 +54,13 @@ const GameCanvas = () => {
     lastEnemySpawn: 0, spawnInterval: 1500, difficulty: 1,
     frameCount: 0, lastShot: 0, shotInterval: 150,
     wave: 1, waveKills: 0, waveThreshold: 10, bossActive: false,
+    // Wave transition
+    waveTransition: false, waveTransitionTimer: 0,
+    // Screen shake
+    shakeIntensity: 0, shakeDecay: 0.9,
+    // Settings
+    difficultyMult: DIFFICULTY_MULTIPLIERS["normal"],
+    keyBindings: getSettings().keyBindings,
   });
   const animFrameRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -62,6 +71,7 @@ const GameCanvas = () => {
   const [muted, setMuted] = useState(false);
   const [canvasScale, setCanvasScale] = useState(1);
   const [wave, setWave] = useState(1);
+  const [waveAnnounce, setWaveAnnounce] = useState(0);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -103,33 +113,32 @@ const GameCanvas = () => {
 
   const spawnEnemy = () => {
     const gs = gameStateRef.current;
+    const dm = gs.difficultyMult;
     const r = Math.random();
     let type: Enemy["type"] = "normal";
     let w = 30 + Math.random() * 15;
     let h = 35;
-    let speed = 1.5 + gs.difficulty * 0.3 + Math.random();
+    let speed = (1.5 + gs.difficulty * 0.3 + Math.random()) * dm.speed;
     let hp = 1;
 
     if (r < 0.2) {
-      type = "fast"; w = 22; h = 28; speed = 3 + gs.difficulty * 0.4; hp = 1;
+      type = "fast"; w = 22; h = 28; speed = (3 + gs.difficulty * 0.4) * dm.speed; hp = 1;
     } else if (r < 0.35) {
-      type = "tank"; w = 45; h = 45; speed = 0.8 + gs.difficulty * 0.15; hp = 4 + Math.floor(gs.difficulty);
+      type = "tank"; w = 45; h = 45; speed = (0.8 + gs.difficulty * 0.15) * dm.speed; hp = Math.round((4 + Math.floor(gs.difficulty)) * dm.health);
     }
 
-    gs.enemies.push({
-      x: Math.random() * (CANVAS_WIDTH - w), y: -h - 10,
-      width: w, height: h, speed, health: hp, maxHealth: hp, type,
-    });
+    gs.enemies.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -h - 10, width: w, height: h, speed, health: hp, maxHealth: hp, type });
   };
 
   const spawnBoss = () => {
     const gs = gameStateRef.current;
-    const hp = 30 + gs.wave * 10;
-    gs.enemies.push({
-      x: CANVAS_WIDTH / 2 - 50, y: -100, width: 100, height: 80,
-      speed: 0.5, health: hp, maxHealth: hp, type: "boss",
-    });
+    const hp = Math.round((30 + gs.wave * 10) * gs.difficultyMult.health);
+    gs.enemies.push({ x: CANVAS_WIDTH / 2 - 50, y: -100, width: 100, height: 80, speed: 0.5, health: hp, maxHealth: hp, type: "boss" });
     gs.bossActive = true;
+  };
+
+  const triggerShake = (intensity: number) => {
+    gameStateRef.current.shakeIntensity = intensity;
   };
 
   const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, shielded: boolean) => {
@@ -170,7 +179,6 @@ const GameCanvas = () => {
     ctx.shadowBlur = e.type === "boss" ? 20 : 10;
 
     if (e.type === "boss") {
-      // Boss: big hexagonal shape
       const cx = e.x + e.width / 2, cy = e.y + e.height / 2;
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
@@ -181,18 +189,15 @@ const GameCanvas = () => {
       }
       ctx.closePath();
       ctx.fill();
-      // Health bar
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillRect(e.x, e.y - 12, e.width, 6);
       ctx.fillStyle = "#ff0000";
       ctx.fillRect(e.x, e.y - 12, e.width * (e.health / e.maxHealth), 6);
-      // Eyes
       ctx.fillStyle = "#ffcc00";
       ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 8;
       ctx.fillRect(cx - 15, cy - 5, 8, 8);
       ctx.fillRect(cx + 7, cy - 5, 8, 8);
     } else if (e.type === "fast") {
-      // Fast: sleek triangle
       ctx.beginPath();
       ctx.moveTo(e.x + e.width / 2, e.y + e.height);
       ctx.lineTo(e.x + e.width, e.y);
@@ -200,17 +205,14 @@ const GameCanvas = () => {
       ctx.closePath();
       ctx.fill();
     } else if (e.type === "tank") {
-      // Tank: rectangle with armor
       ctx.fillRect(e.x, e.y, e.width, e.height);
       ctx.fillStyle = "rgba(255,255,255,0.15)";
       ctx.fillRect(e.x + 4, e.y + 4, e.width - 8, e.height - 8);
-      // Health bar
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillRect(e.x, e.y - 8, e.width, 4);
       ctx.fillStyle = "#6644ff";
       ctx.fillRect(e.x, e.y - 8, e.width * (e.health / e.maxHealth), 4);
     } else {
-      // Normal: inverted triangle
       ctx.beginPath();
       ctx.moveTo(e.x + e.width / 2, e.y + e.height);
       ctx.lineTo(e.x + e.width, e.y);
@@ -219,7 +221,6 @@ const GameCanvas = () => {
       ctx.closePath();
       ctx.fill();
     }
-    // Eyes for non-boss
     if (e.type !== "boss") {
       ctx.fillStyle = "#ffcc00";
       ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 5;
@@ -236,8 +237,30 @@ const GameCanvas = () => {
     if (!ctx) return;
     const gs = gameStateRef.current;
     const skin = skinRef.current;
+    const kb = gs.keyBindings;
 
     if (gs.gameOver || gs.paused) {
+      animFrameRef.current = requestAnimationFrame(gameLoop);
+      return;
+    }
+
+    // Wave transition pause
+    if (gs.waveTransition) {
+      gs.waveTransitionTimer--;
+      if (gs.waveTransitionTimer <= 0) {
+        gs.waveTransition = false;
+      }
+      // Still draw background during transition
+      ctx.fillStyle = "#080c14";
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      gs.stars.forEach((s) => {
+        s.y += s.speed;
+        if (s.y > CANVAS_HEIGHT) { s.y = 0; s.x = Math.random() * CANVAS_WIDTH; }
+        ctx.fillStyle = `rgba(180, 230, 255, ${s.brightness})`;
+        ctx.fillRect(s.x, s.y, s.size, s.size);
+      });
+      drawPlayer(ctx, gs.player, gs.shield > 0);
+      // Wave text drawn via React overlay
       animFrameRef.current = requestAnimationFrame(gameLoop);
       return;
     }
@@ -246,6 +269,19 @@ const GameCanvas = () => {
     if (gs.shield > 0) gs.shield--;
     if (gs.rapidFire > 0) gs.rapidFire--;
     if (gs.multiShot > 0) gs.multiShot--;
+
+    // Screen shake
+    let shakeX = 0, shakeY = 0;
+    if (gs.shakeIntensity > 0.5) {
+      shakeX = (Math.random() - 0.5) * gs.shakeIntensity;
+      shakeY = (Math.random() - 0.5) * gs.shakeIntensity;
+      gs.shakeIntensity *= gs.shakeDecay;
+    } else {
+      gs.shakeIntensity = 0;
+    }
+
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
 
     ctx.fillStyle = "#080c14";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -267,19 +303,30 @@ const GameCanvas = () => {
     // Player movement
     const p = gs.player;
     const spd = p.speed;
-    if (gs.keys["ArrowLeft"] || gs.keys["a"]) p.x -= spd;
-    if (gs.keys["ArrowRight"] || gs.keys["d"]) p.x += spd;
-    if (gs.keys["ArrowUp"] || gs.keys["w"]) p.y -= spd;
-    if (gs.keys["ArrowDown"] || gs.keys["s"]) p.y += spd;
+    if (gs.keys[kb.left] || gs.keys["a"]) p.x -= spd;
+    if (gs.keys[kb.right] || gs.keys["d"]) p.x += spd;
+    if (gs.keys[kb.up] || gs.keys["w"]) p.y -= spd;
+    if (gs.keys[kb.down] || gs.keys["s"]) p.y += spd;
     p.x += gs.touchMove.dx * spd;
     p.y += gs.touchMove.dy * spd;
     p.x = Math.max(0, Math.min(CANVAS_WIDTH - p.width, p.x));
     p.y = Math.max(0, Math.min(CANVAS_HEIGHT - p.height, p.y));
 
+    // Engine trail particles
+    if (gs.frameCount % 2 === 0) {
+      gs.trailParticles.push({
+        x: p.x + p.width / 2 + (Math.random() - 0.5) * 6,
+        y: p.y + p.height + 5,
+        life: 15 + Math.random() * 10,
+        maxLife: 25,
+        size: 1.5 + Math.random() * 2,
+      });
+    }
+
     // Shooting
     const now = Date.now();
     const interval = gs.rapidFire > 0 ? 80 : gs.shotInterval;
-    const firing = gs.keys[" "] || gs.touchFiring;
+    const firing = gs.keys[kb.shoot] || gs.touchFiring;
     if (firing && now - gs.lastShot > interval) {
       if (gs.multiShot > 0) {
         gs.bullets.push({ x: p.x + p.width / 2 - 2, y: p.y, width: 4, height: 12, speed: 8 });
@@ -305,7 +352,8 @@ const GameCanvas = () => {
     });
 
     // Enemy spawn
-    if (now - gs.lastEnemySpawn > gs.spawnInterval && !gs.bossActive) {
+    const spawnInt = gs.spawnInterval * gs.difficultyMult.spawnRate;
+    if (now - gs.lastEnemySpawn > spawnInt && !gs.bossActive) {
       spawnEnemy();
       gs.lastEnemySpawn = now;
     }
@@ -314,6 +362,10 @@ const GameCanvas = () => {
     if (gs.waveKills >= gs.waveThreshold && !gs.bossActive) {
       gs.wave++;
       setWave(gs.wave);
+      setWaveAnnounce(gs.wave);
+      gs.waveTransition = true;
+      gs.waveTransitionTimer = 90; // ~1.5 seconds at 60fps
+      setTimeout(() => setWaveAnnounce(0), 2000);
       if (gs.wave % 10 === 0) {
         spawnBoss();
       }
@@ -329,7 +381,6 @@ const GameCanvas = () => {
 
     // Enemies
     gs.enemies = gs.enemies.filter((e) => {
-      // Boss movement: sway side to side
       if (e.type === "boss") {
         e.y = Math.min(60, e.y + e.speed);
         e.x += Math.sin(gs.frameCount * 0.02) * 1.5;
@@ -355,13 +406,14 @@ const GameCanvas = () => {
             spawnPowerUp(e.x + e.width / 2, e.y + e.height / 2);
             if (e.type === "boss") {
               gs.bossActive = false;
-              // Extra power-ups from boss
+              triggerShake(20);
               spawnPowerUp(e.x + 20, e.y + 20);
               spawnPowerUp(e.x + e.width - 20, e.y + 20);
             }
             return false;
           }
           spawnParticles(b.x, b.y, "#ffffff", 3);
+          if (e.type === "boss") triggerShake(6);
         }
       }
 
@@ -376,6 +428,7 @@ const GameCanvas = () => {
           gs.health -= dmg;
           setHealth(gs.health);
           soundEngine.hit();
+          triggerShake(10);
           spawnParticles(e.x + e.width / 2, e.y + e.height / 2, "#ffcc00", 8);
           if (gs.health <= 0) {
             gs.gameOver = true;
@@ -426,7 +479,7 @@ const GameCanvas = () => {
       return pu.y < CANVAS_HEIGHT + 20;
     });
 
-    // Particles
+    // Explosion particles
     gs.particles = gs.particles.filter((pt) => {
       pt.x += pt.vx; pt.y += pt.vy; pt.life--;
       const alpha = pt.life / pt.maxLife;
@@ -435,6 +488,22 @@ const GameCanvas = () => {
       ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
       ctx.restore();
       return pt.life > 0;
+    });
+
+    // Engine trail particles
+    gs.trailParticles = gs.trailParticles.filter((tp) => {
+      tp.life--;
+      const alpha = tp.life / tp.maxLife;
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.6;
+      ctx.fillStyle = skin.engineColor;
+      ctx.shadowColor = skin.engineColor;
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(tp.x, tp.y + (tp.maxLife - tp.life) * 0.5, tp.size * alpha, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return tp.life > 0;
     });
 
     drawPlayer(ctx, p, gs.shield > 0);
@@ -463,13 +532,11 @@ const GameCanvas = () => {
     ctx.textAlign = "left";
     ctx.fillText("SHIELD", 12, 38);
 
-    // Wave indicator
     ctx.textAlign = "center";
     ctx.font = "10px Orbitron";
     ctx.fillStyle = "rgba(255,255,255,0.4)";
     ctx.fillText(`WAVE ${gs.wave}`, CANVAS_WIDTH / 2, 20);
 
-    // Active power-up indicators
     const indicators: string[] = [];
     if (gs.shield > 0) indicators.push("🛡️ SHIELD");
     if (gs.rapidFire > 0) indicators.push("⚡ RAPID");
@@ -481,7 +548,6 @@ const GameCanvas = () => {
       ctx.shadowBlur = 0;
     }
 
-    // Boss warning
     if (gs.bossActive) {
       ctx.font = "12px Orbitron"; ctx.textAlign = "center";
       ctx.fillStyle = "#ff0000"; ctx.shadowColor = "#ff0000"; ctx.shadowBlur = 10;
@@ -489,21 +555,30 @@ const GameCanvas = () => {
       ctx.shadowBlur = 0;
     }
 
+    ctx.restore(); // end shake transform
+
     animFrameRef.current = requestAnimationFrame(gameLoop);
   }, []);
 
   const startGame = useCallback(() => {
     const gs = gameStateRef.current;
     const user = getCurrentUser();
+    const settings = getSettings();
     skinRef.current = getSkin(user?.selectedSkin || "default");
+    gs.difficultyMult = DIFFICULTY_MULTIPLIERS[settings.difficulty];
+    gs.keyBindings = settings.keyBindings;
+    soundEngine.setVolume(settings.volume / 100);
+
     gs.player = { x: CANVAS_WIDTH / 2 - 20, y: CANVAS_HEIGHT - 80, width: 40, height: 50, speed: 5 };
-    gs.bullets = []; gs.enemies = []; gs.particles = []; gs.powerUps = [];
+    gs.bullets = []; gs.enemies = []; gs.particles = []; gs.powerUps = []; gs.trailParticles = [];
     gs.score = 0; gs.health = 100; gs.shield = 0; gs.rapidFire = 0; gs.multiShot = 0;
     gs.gameOver = false; gs.paused = false;
     gs.lastEnemySpawn = 0; gs.spawnInterval = 1500; gs.difficulty = 1; gs.frameCount = 0; gs.lastShot = 0;
     gs.touchMove = { dx: 0, dy: 0 }; gs.touchFiring = false;
     gs.wave = 1; gs.waveKills = 0; gs.waveThreshold = 10; gs.bossActive = false;
-    setScore(0); setHealth(100); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1);
+    gs.waveTransition = false; gs.waveTransitionTimer = 0;
+    gs.shakeIntensity = 0;
+    setScore(0); setHealth(100); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0);
     initStars();
     soundEngine.startMusic();
   }, [initStars]);
@@ -518,9 +593,11 @@ const GameCanvas = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " ", "w", "a", "s", "d"].includes(e.key)) e.preventDefault();
+      const kb = gameStateRef.current.keyBindings;
+      const gameKeys = [kb.up, kb.down, kb.left, kb.right, kb.shoot, "w", "a", "s", "d"];
+      if (gameKeys.includes(e.key)) e.preventDefault();
       gameStateRef.current.keys[e.key] = true;
-      if (e.key === "p" || e.key === "Escape") {
+      if (e.key === kb.pause || e.key === "Escape") {
         gameStateRef.current.paused = !gameStateRef.current.paused;
         setPaused(gameStateRef.current.paused);
       }
@@ -552,6 +629,19 @@ const GameCanvas = () => {
         <button onClick={toggleMute} className="absolute top-2 right-2 z-20 p-2 text-muted-foreground hover:text-primary transition-colors">
           {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
         </button>
+      )}
+
+      {/* Wave announcement overlay */}
+      {waveAnnounce > 0 && (
+        <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none" style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
+          <div className="text-center animate-fade-in">
+            <p className="font-display text-sm text-muted-foreground tracking-widest mb-1">INCOMING</p>
+            <h2 className="font-display text-4xl text-primary text-glow-cyan animate-pulse">WAVE {waveAnnounce}</h2>
+            {waveAnnounce % 10 === 0 && (
+              <p className="font-display text-lg text-destructive mt-2 animate-pulse">⚠ BOSS INCOMING ⚠</p>
+            )}
+          </div>
+        </div>
       )}
 
       {!gameStarted && (

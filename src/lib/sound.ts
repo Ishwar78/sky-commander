@@ -16,15 +16,24 @@ class SoundEngine {
     return this.ctx;
   }
 
+  private volume = 0.7;
+
   setMuted(m: boolean) {
     this.muted = m;
     if (this.musicGain) {
-      this.musicGain.gain.value = m ? 0 : 0.04;
+      this.musicGain.gain.value = m ? 0 : 0.04 * this.volume;
     }
   }
 
   isMuted() {
     return this.muted;
+  }
+
+  setVolume(v: number) {
+    this.volume = Math.max(0, Math.min(1, v));
+    if (this.musicGain && !this.muted) {
+      this.musicGain.gain.value = 0.04 * this.volume;
+    }
   }
 
   shoot() {
