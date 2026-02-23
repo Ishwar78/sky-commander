@@ -9,9 +9,11 @@ import { getSettings, DIFFICULTY_MULTIPLIERS } from "@/lib/settings";
 
 interface Player { x: number; y: number; width: number; height: number; speed: number; }
 interface Bullet { x: number; y: number; width: number; height: number; speed: number; }
+interface EnemyBullet { x: number; y: number; width: number; height: number; speed: number; angle: number; }
 interface Enemy {
   x: number; y: number; width: number; height: number; speed: number; health: number; maxHealth: number;
   type: "normal" | "fast" | "tank" | "boss";
+  lastShot: number;
 }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number; }
 interface Star { x: number; y: number; speed: number; size: number; brightness: number; }
@@ -34,6 +36,11 @@ const ENEMY_COLORS: Record<string, string> = {
   normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000",
 };
 
+// Enemy shoot intervals (ms)
+const ENEMY_SHOOT_INTERVALS: Record<string, number> = {
+  normal: 3000, fast: 4000, tank: 2000, boss: 800,
+};
+
 const GameCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,6 +49,7 @@ const GameCanvas = () => {
   const gameStateRef = useRef({
     player: { x: CANVAS_WIDTH / 2 - 20, y: CANVAS_HEIGHT - 80, width: 40, height: 50, speed: 5 } as Player,
     bullets: [] as Bullet[],
+    enemyBullets: [] as EnemyBullet[],
     enemies: [] as Enemy[],
     particles: [] as Particle[],
     stars: [] as Star[],
@@ -54,13 +62,12 @@ const GameCanvas = () => {
     lastEnemySpawn: 0, spawnInterval: 1500, difficulty: 1,
     frameCount: 0, lastShot: 0, shotInterval: 150,
     wave: 1, waveKills: 0, waveThreshold: 10, bossActive: false,
-    // Wave transition
     waveTransition: false, waveTransitionTimer: 0,
-    // Screen shake
     shakeIntensity: 0, shakeDecay: 0.9,
-    // Settings
     difficultyMult: DIFFICULTY_MULTIPLIERS["normal"],
     keyBindings: getSettings().keyBindings,
+    // Combo system
+    combo: 0, comboTimer: 0, maxCombo: 0, comboMultiplier: 1,
   });
   const animFrameRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -127,18 +134,40 @@ const GameCanvas = () => {
       type = "tank"; w = 45; h = 45; speed = (0.8 + gs.difficulty * 0.15) * dm.speed; hp = Math.round((4 + Math.floor(gs.difficulty)) * dm.health);
     }
 
-    gs.enemies.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -h - 10, width: w, height: h, speed, health: hp, maxHealth: hp, type });
+    gs.enemies.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -h - 10, width: w, height: h, speed, health: hp, maxHealth: hp, type, lastShot: Date.now() });
   };
 
   const spawnBoss = () => {
     const gs = gameStateRef.current;
     const hp = Math.round((30 + gs.wave * 10) * gs.difficultyMult.health);
-    gs.enemies.push({ x: CANVAS_WIDTH / 2 - 50, y: -100, width: 100, height: 80, speed: 0.5, health: hp, maxHealth: hp, type: "boss" });
+    gs.enemies.push({ x: CANVAS_WIDTH / 2 - 50, y: -100, width: 100, height: 80, speed: 0.5, health: hp, maxHealth: hp, type: "boss", lastShot: Date.now() });
     gs.bossActive = true;
   };
 
   const triggerShake = (intensity: number) => {
     gameStateRef.current.shakeIntensity = intensity;
+  };
+
+  const shootEnemyBullet = (e: Enemy) => {
+    const gs = gameStateRef.current;
+    const p = gs.player;
+    const cx = e.x + e.width / 2;
+    const cy = e.y + e.height;
+    const dx = (p.x + p.width / 2) - cx;
+    const dy = (p.y + p.height / 2) - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist === 0) return;
+    const angle = Math.atan2(dy, dx);
+    const speed = e.type === "boss" ? 4 : 3;
+
+    if (e.type === "boss") {
+      // Boss shoots 3 bullets in spread
+      for (let i = -1; i <= 1; i++) {
+        gs.enemyBullets.push({ x: cx - 3, y: cy, width: 6, height: 6, speed, angle: angle + i * 0.3 });
+      }
+    } else {
+      gs.enemyBullets.push({ x: cx - 2, y: cy, width: 4, height: 4, speed, angle });
+    }
   };
 
   const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, shielded: boolean) => {
@@ -247,10 +276,7 @@ const GameCanvas = () => {
     // Wave transition pause
     if (gs.waveTransition) {
       gs.waveTransitionTimer--;
-      if (gs.waveTransitionTimer <= 0) {
-        gs.waveTransition = false;
-      }
-      // Still draw background during transition
+      if (gs.waveTransitionTimer <= 0) gs.waveTransition = false;
       ctx.fillStyle = "#080c14";
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       gs.stars.forEach((s) => {
@@ -260,7 +286,6 @@ const GameCanvas = () => {
         ctx.fillRect(s.x, s.y, s.size, s.size);
       });
       drawPlayer(ctx, gs.player, gs.shield > 0);
-      // Wave text drawn via React overlay
       animFrameRef.current = requestAnimationFrame(gameLoop);
       return;
     }
@@ -269,6 +294,15 @@ const GameCanvas = () => {
     if (gs.shield > 0) gs.shield--;
     if (gs.rapidFire > 0) gs.rapidFire--;
     if (gs.multiShot > 0) gs.multiShot--;
+
+    // Combo timer decay
+    if (gs.comboTimer > 0) {
+      gs.comboTimer--;
+      if (gs.comboTimer <= 0) {
+        gs.combo = 0;
+        gs.comboMultiplier = 1;
+      }
+    }
 
     // Screen shake
     let shakeX = 0, shakeY = 0;
@@ -286,7 +320,6 @@ const GameCanvas = () => {
     ctx.fillStyle = "#080c14";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Stars
     gs.stars.forEach((s) => {
       s.y += s.speed;
       if (s.y > CANVAS_HEIGHT) { s.y = 0; s.x = Math.random() * CANVAS_WIDTH; }
@@ -294,7 +327,6 @@ const GameCanvas = () => {
       ctx.fillRect(s.x, s.y, s.size, s.size);
     });
 
-    // Grid
     ctx.strokeStyle = "rgba(0, 255, 200, 0.03)";
     ctx.lineWidth = 1;
     for (let i = 0; i < CANVAS_WIDTH; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, CANVAS_HEIGHT); ctx.stroke(); }
@@ -312,13 +344,12 @@ const GameCanvas = () => {
     p.x = Math.max(0, Math.min(CANVAS_WIDTH - p.width, p.x));
     p.y = Math.max(0, Math.min(CANVAS_HEIGHT - p.height, p.y));
 
-    // Engine trail particles
+    // Engine trail
     if (gs.frameCount % 2 === 0) {
       gs.trailParticles.push({
         x: p.x + p.width / 2 + (Math.random() - 0.5) * 6,
         y: p.y + p.height + 5,
-        life: 15 + Math.random() * 10,
-        maxLife: 25,
+        life: 15 + Math.random() * 10, maxLife: 25,
         size: 1.5 + Math.random() * 2,
       });
     }
@@ -339,7 +370,7 @@ const GameCanvas = () => {
       soundEngine.shoot();
     }
 
-    // Bullets
+    // Player bullets
     gs.bullets = gs.bullets.filter((b) => {
       b.y -= b.speed;
       ctx.save();
@@ -364,11 +395,9 @@ const GameCanvas = () => {
       setWave(gs.wave);
       setWaveAnnounce(gs.wave);
       gs.waveTransition = true;
-      gs.waveTransitionTimer = 90; // ~1.5 seconds at 60fps
+      gs.waveTransitionTimer = 90;
       setTimeout(() => setWaveAnnounce(0), 2000);
-      if (gs.wave % 10 === 0) {
-        spawnBoss();
-      }
+      if (gs.wave % 10 === 0) spawnBoss();
       gs.waveKills = 0;
       gs.waveThreshold = 10 + gs.wave * 2;
     }
@@ -390,13 +419,29 @@ const GameCanvas = () => {
       }
       drawEnemy(ctx, e);
 
+      // Enemy shooting - only shoot when on screen
+      if (e.y > 0 && e.y < CANVAS_HEIGHT - 100) {
+        const shootInterval = ENEMY_SHOOT_INTERVALS[e.type] / gs.difficultyMult.speed;
+        if (now - e.lastShot > shootInterval) {
+          shootEnemyBullet(e);
+          e.lastShot = now;
+        }
+      }
+
       for (let i = gs.bullets.length - 1; i >= 0; i--) {
         const b = gs.bullets[i];
         if (b.x < e.x + e.width && b.x + b.width > e.x && b.y < e.y + e.height && b.y + b.height > e.y) {
           gs.bullets.splice(i, 1);
           e.health--;
           if (e.health <= 0) {
-            const pts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "fast" ? 15 : 10;
+            // Combo system
+            gs.combo++;
+            gs.comboTimer = 120; // ~2 seconds at 60fps
+            gs.comboMultiplier = 1 + Math.floor(gs.combo / 3) * 0.5; // +0.5x every 3 kills
+            if (gs.combo > gs.maxCombo) gs.maxCombo = gs.combo;
+
+            const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "fast" ? 15 : 10;
+            const pts = Math.round(basePts * gs.comboMultiplier);
             gs.score += pts;
             setScore(gs.score);
             gs.waveKills++;
@@ -430,11 +475,11 @@ const GameCanvas = () => {
           soundEngine.hit();
           triggerShake(10);
           spawnParticles(e.x + e.width / 2, e.y + e.height / 2, "#ffcc00", 8);
+          // Break combo on hit
+          gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0;
           if (gs.health <= 0) {
-            gs.gameOver = true;
-            setGameOver(true);
-            soundEngine.gameOver();
-            soundEngine.stopMusic();
+            gs.gameOver = true; setGameOver(true);
+            soundEngine.gameOver(); soundEngine.stopMusic();
           }
         }
         if (e.type !== "boss") return false;
@@ -452,6 +497,44 @@ const GameCanvas = () => {
         return false;
       }
       return true;
+    });
+
+    // Enemy bullets
+    gs.enemyBullets = gs.enemyBullets.filter((eb) => {
+      eb.x += Math.cos(eb.angle) * eb.speed;
+      eb.y += Math.sin(eb.angle) * eb.speed;
+
+      ctx.save();
+      ctx.fillStyle = "#ff4444";
+      ctx.shadowColor = "#ff4444";
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(eb.x + eb.width / 2, eb.y + eb.height / 2, eb.width / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Hit player?
+      if (eb.x < p.x + p.width && eb.x + eb.width > p.x && eb.y < p.y + p.height && eb.y + eb.height > p.y) {
+        if (gs.shield > 0) {
+          gs.shield = Math.max(0, gs.shield - 60);
+          spawnParticles(eb.x, eb.y, "#00ccff", 5);
+        } else {
+          gs.health -= 10;
+          setHealth(gs.health);
+          soundEngine.hit();
+          triggerShake(4);
+          // Break combo on hit
+          gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0;
+          spawnParticles(eb.x, eb.y, "#ff4444", 5);
+          if (gs.health <= 0) {
+            gs.gameOver = true; setGameOver(true);
+            soundEngine.gameOver(); soundEngine.stopMusic();
+          }
+        }
+        return false;
+      }
+
+      return eb.x > -10 && eb.x < CANVAS_WIDTH + 10 && eb.y > -10 && eb.y < CANVAS_HEIGHT + 10;
     });
 
     // Power-ups
@@ -490,7 +573,7 @@ const GameCanvas = () => {
       return pt.life > 0;
     });
 
-    // Engine trail particles
+    // Engine trail
     gs.trailParticles = gs.trailParticles.filter((tp) => {
       tp.life--;
       const alpha = tp.life / tp.maxLife;
@@ -537,6 +620,18 @@ const GameCanvas = () => {
     ctx.fillStyle = "rgba(255,255,255,0.4)";
     ctx.fillText(`WAVE ${gs.wave}`, CANVAS_WIDTH / 2, 20);
 
+    // Combo indicator
+    if (gs.combo >= 2) {
+      ctx.font = "bold 14px Orbitron";
+      ctx.textAlign = "center";
+      const comboAlpha = Math.min(1, gs.comboTimer / 30);
+      ctx.fillStyle = gs.comboMultiplier >= 2.5 ? `rgba(255, 100, 255, ${comboAlpha})` : gs.comboMultiplier >= 1.5 ? `rgba(255, 204, 0, ${comboAlpha})` : `rgba(0, 255, 200, ${comboAlpha})`;
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = 10;
+      ctx.fillText(`${gs.combo}x COMBO • ${gs.comboMultiplier.toFixed(1)}x`, CANVAS_WIDTH / 2, 65);
+      ctx.shadowBlur = 0;
+    }
+
     const indicators: string[] = [];
     if (gs.shield > 0) indicators.push("🛡️ SHIELD");
     if (gs.rapidFire > 0) indicators.push("⚡ RAPID");
@@ -555,7 +650,7 @@ const GameCanvas = () => {
       ctx.shadowBlur = 0;
     }
 
-    ctx.restore(); // end shake transform
+    ctx.restore(); // end shake
 
     animFrameRef.current = requestAnimationFrame(gameLoop);
   }, []);
@@ -570,7 +665,7 @@ const GameCanvas = () => {
     soundEngine.setVolume(settings.volume / 100);
 
     gs.player = { x: CANVAS_WIDTH / 2 - 20, y: CANVAS_HEIGHT - 80, width: 40, height: 50, speed: 5 };
-    gs.bullets = []; gs.enemies = []; gs.particles = []; gs.powerUps = []; gs.trailParticles = [];
+    gs.bullets = []; gs.enemyBullets = []; gs.enemies = []; gs.particles = []; gs.powerUps = []; gs.trailParticles = [];
     gs.score = 0; gs.health = 100; gs.shield = 0; gs.rapidFire = 0; gs.multiShot = 0;
     gs.gameOver = false; gs.paused = false;
     gs.lastEnemySpawn = 0; gs.spawnInterval = 1500; gs.difficulty = 1; gs.frameCount = 0; gs.lastShot = 0;
@@ -578,6 +673,7 @@ const GameCanvas = () => {
     gs.wave = 1; gs.waveKills = 0; gs.waveThreshold = 10; gs.bossActive = false;
     gs.waveTransition = false; gs.waveTransitionTimer = 0;
     gs.shakeIntensity = 0;
+    gs.combo = 0; gs.comboTimer = 0; gs.maxCombo = 0; gs.comboMultiplier = 1;
     setScore(0); setHealth(100); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0);
     initStars();
     soundEngine.startMusic();
@@ -631,7 +727,6 @@ const GameCanvas = () => {
         </button>
       )}
 
-      {/* Wave announcement overlay */}
       {waveAnnounce > 0 && (
         <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none" style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
           <div className="text-center animate-fade-in">
@@ -648,7 +743,8 @@ const GameCanvas = () => {
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg" style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
           <h2 className="font-display text-3xl text-glow-cyan mb-4 text-primary">READY?</h2>
           <p className="text-muted-foreground mb-2 text-sm font-body">Arrow keys to move • Space to shoot</p>
-          <p className="text-muted-foreground mb-6 text-xs font-body">P to pause • Boss every 10 waves!</p>
+          <p className="text-muted-foreground mb-2 text-xs font-body">P to pause • Boss every 10 waves!</p>
+          <p className="text-muted-foreground mb-6 text-xs font-body">Chain kills for combo multiplier!</p>
           <button onClick={startGame} className="px-8 py-3 bg-primary text-primary-foreground font-display text-lg rounded-lg box-glow-cyan hover:scale-105 transition-transform">
             START GAME
           </button>
