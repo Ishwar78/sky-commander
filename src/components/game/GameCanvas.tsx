@@ -15,12 +15,12 @@ interface Bullet { x: number; y: number; width: number; height: number; speed: n
 interface EnemyBullet { x: number; y: number; width: number; height: number; speed: number; angle: number; }
 interface Enemy {
   x: number; y: number; width: number; height: number; speed: number; health: number; maxHealth: number;
-  type: "normal" | "fast" | "tank" | "boss" | "shield" | "stealth";
+  type: "normal" | "fast" | "tank" | "boss" | "shield" | "stealth" | "splitter" | "mini";
   lastShot: number;
   id: number;
-  shieldFacing?: "front"; // shield enemies block frontal hits
-  stealthAlpha?: number; // stealth enemies fade
-  stealthPhase?: number; // phase counter for stealth cycle
+  shieldFacing?: "front";
+  stealthAlpha?: number;
+  stealthPhase?: number;
 }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number; }
 interface Star { x: number; y: number; speed: number; size: number; brightness: number; }
@@ -40,19 +40,23 @@ const POWERUP_LABELS: Record<string, string> = {
   shield: "🛡️", rapid: "⚡", multi: "🔥", health: "💚",
 };
 const ENEMY_COLORS: Record<string, string> = {
-  normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000", shield: "#00aaff", stealth: "#88ffbb",
+  normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000", shield: "#00aaff", stealth: "#88ffbb", splitter: "#ff88cc", mini: "#ff88cc",
 };
 const WEAPON_COLORS: Record<WeaponType, string> = {
   laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00",
 };
 
 const ENEMY_SHOOT_INTERVALS: Record<string, number> = {
-  normal: 3000, fast: 4000, tank: 2000, boss: 800, shield: 2500, stealth: 3500,
+  normal: 3000, fast: 4000, tank: 2000, boss: 800, shield: 2500, stealth: 3500, splitter: 3000, mini: 5000,
 };
 
 let enemyIdCounter = 0;
 
-const GameCanvas = () => {
+interface GameCanvasProps {
+  mode?: "normal" | "bossrush";
+}
+
+const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const skinRef = useRef<ShipSkin>(getSkin("default"));
@@ -162,13 +166,15 @@ const GameCanvas = () => {
     let speed = (1.5 + gs.difficulty * 0.3 + Math.random()) * dm.speed;
     let hp = 1;
 
-    if (r < 0.12) {
+    if (r < 0.08) {
+      type = "splitter"; w = 38; h = 38; speed = (1.3 + gs.difficulty * 0.2) * dm.speed; hp = Math.round((2 + Math.floor(gs.difficulty * 0.3)) * dm.health);
+    } else if (r < 0.18) {
       type = "stealth"; w = 28; h = 32; speed = (1.8 + gs.difficulty * 0.25) * dm.speed; hp = 2;
-    } else if (r < 0.22) {
+    } else if (r < 0.27) {
       type = "shield"; w = 35; h = 40; speed = (1.2 + gs.difficulty * 0.2) * dm.speed; hp = Math.round((3 + Math.floor(gs.difficulty * 0.5)) * dm.health);
-    } else if (r < 0.38) {
+    } else if (r < 0.42) {
       type = "fast"; w = 22; h = 28; speed = (3 + gs.difficulty * 0.4) * dm.speed; hp = 1;
-    } else if (r < 0.5) {
+    } else if (r < 0.52) {
       type = "tank"; w = 45; h = 45; speed = (0.8 + gs.difficulty * 0.15) * dm.speed; hp = Math.round((4 + Math.floor(gs.difficulty)) * dm.health);
     }
 
@@ -348,6 +354,25 @@ const GameCanvas = () => {
       }
       ctx.closePath();
       ctx.fill();
+    } else if (e.type === "splitter" || e.type === "mini") {
+      // Hexagon shape
+      const cx = e.x + e.width / 2, cy = e.y + e.height / 2;
+      const r = e.width / 2;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        const px = cx + Math.cos(angle) * r;
+        const py = cy + Math.sin(angle) * r;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (e.type === "splitter") {
+        // Inner split line
+        ctx.strokeStyle = "rgba(255,255,255,0.3)";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(cx, e.y); ctx.lineTo(cx, e.y + e.height); ctx.stroke();
+      }
     } else if (e.type === "fast") {
       ctx.beginPath();
       ctx.moveTo(e.x + e.width / 2, e.y + e.height);
@@ -490,14 +515,24 @@ const GameCanvas = () => {
     });
 
     const spawnInt = gs.spawnInterval * gs.difficultyMult.spawnRate;
-    if (now - gs.lastEnemySpawn > spawnInt && !gs.bossActive) { spawnEnemy(); gs.lastEnemySpawn = now; }
-
-    if (gs.waveKills >= gs.waveThreshold && !gs.bossActive) {
-      gs.wave++; setWave(gs.wave); setWaveAnnounce(gs.wave);
-      gs.waveTransition = true; gs.waveTransitionTimer = 90;
-      setTimeout(() => setWaveAnnounce(0), 2000);
-      if (gs.wave % 10 === 0) spawnBoss();
-      gs.waveKills = 0; gs.waveThreshold = 10 + gs.wave * 2;
+    if (mode === "bossrush") {
+      // Boss rush: spawn support enemies slower, boss per wave
+      if (now - gs.lastEnemySpawn > spawnInt * 2 && !gs.bossActive) { spawnEnemy(); gs.lastEnemySpawn = now; }
+      if (!gs.bossActive && gs.enemies.filter(e => e.type === "boss").length === 0) {
+        gs.wave++; setWave(gs.wave); setWaveAnnounce(gs.wave);
+        setTimeout(() => setWaveAnnounce(0), 2000);
+        gs.difficulty += 0.3;
+        spawnBoss();
+      }
+    } else {
+      if (now - gs.lastEnemySpawn > spawnInt && !gs.bossActive) { spawnEnemy(); gs.lastEnemySpawn = now; }
+      if (gs.waveKills >= gs.waveThreshold && !gs.bossActive) {
+        gs.wave++; setWave(gs.wave); setWaveAnnounce(gs.wave);
+        gs.waveTransition = true; gs.waveTransitionTimer = 90;
+        setTimeout(() => setWaveAnnounce(0), 2000);
+        if (gs.wave % 10 === 0) spawnBoss();
+        gs.waveKills = 0; gs.waveThreshold = 10 + gs.wave * 2;
+      }
     }
 
     if (gs.frameCount % 1200 === 0) { gs.difficulty += 0.5; gs.spawnInterval = Math.max(400, gs.spawnInterval - 100); }
@@ -540,12 +575,22 @@ const GameCanvas = () => {
             gs.combo++; gs.comboTimer = 120; gs.comboMultiplier = 1 + Math.floor(gs.combo / 3) * 0.5;
             if (gs.combo > gs.maxCombo) { gs.maxCombo = gs.combo; setMaxCombo(gs.maxCombo); }
             if (gs.comboMultiplier > maxMultiplier) { setMaxMultiplier(gs.comboMultiplier); }
-            const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "shield" ? 25 : e.type === "stealth" ? 20 : e.type === "fast" ? 15 : 10;
+            const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "shield" ? 25 : e.type === "splitter" ? 20 : e.type === "stealth" ? 20 : e.type === "fast" ? 15 : e.type === "mini" ? 5 : 10;
             gs.score += Math.round(basePts * gs.comboMultiplier); setScore(gs.score);
             gs.waveKills++;
             spawnParticles(e.x + e.width / 2, e.y + e.height / 2, ENEMY_COLORS[e.type], e.type === "boss" ? 30 : 12);
             soundEngine.explosion();
             spawnPowerUp(e.x + e.width / 2, e.y + e.height / 2);
+            // Splitter: spawn 2 mini enemies
+            if (e.type === "splitter") {
+              for (let s = -1; s <= 1; s += 2) {
+                gs.enemies.push({
+                  x: e.x + e.width / 2 + s * 20, y: e.y, width: 18, height: 18,
+                  speed: e.speed * 1.5, health: 1, maxHealth: 1, type: "mini",
+                  lastShot: Date.now(), id: enemyIdCounter++,
+                });
+              }
+            }
             if (e.type === "boss") {
               gs.bossActive = false; gs.bossKilledThisGame = true;
               triggerShake(20);
@@ -693,7 +738,11 @@ const GameCanvas = () => {
     setScore(0); setHealth(gs.maxHealth); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0); setMaxCombo(0); setMaxMultiplier(1);
     initStars();
     soundEngine.startMusic();
-  }, [initStars]);
+    // Boss rush: spawn first boss immediately
+    if (mode === "bossrush") {
+      setTimeout(() => { spawnBoss(); setWaveAnnounce(1); setTimeout(() => setWaveAnnounce(0), 2000); }, 500);
+    }
+  }, [initStars, mode]);
 
   const handleGameOver = useCallback(() => {
     const gs = gameStateRef.current;
@@ -784,13 +833,24 @@ const GameCanvas = () => {
 
       {!gameStarted && !showTutorial && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg" style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
-          <h2 className="font-display text-3xl text-glow-cyan mb-4 text-primary">READY?</h2>
-          <p className="text-muted-foreground mb-2 text-sm font-body">Arrow keys to move • Space to shoot</p>
-          <p className="text-muted-foreground mb-2 text-xs font-body">P to pause • 1/2/3 to switch weapons</p>
-          <p className="text-muted-foreground mb-6 text-xs font-body">Chain kills for combo multiplier!</p>
+          <h2 className="font-display text-3xl text-glow-cyan mb-2 text-primary">
+            {mode === "bossrush" ? "BOSS RUSH" : "READY?"}
+          </h2>
+          {mode === "bossrush" ? (
+            <>
+              <p className="text-destructive mb-2 text-sm font-display">⚠ CONSECUTIVE BOSSES ⚠</p>
+              <p className="text-muted-foreground mb-6 text-xs font-body">Each boss is tougher. How far can you go?</p>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground mb-2 text-sm font-body">Arrow keys to move • Space to shoot</p>
+              <p className="text-muted-foreground mb-2 text-xs font-body">P to pause • 1/2/3 to switch weapons</p>
+              <p className="text-muted-foreground mb-6 text-xs font-body">Chain kills for combo multiplier!</p>
+            </>
+          )}
           <div className="flex flex-col items-center gap-3">
             <button onClick={startGame} className="px-8 py-3 bg-primary text-primary-foreground font-display text-lg rounded-lg box-glow-cyan hover:scale-105 transition-transform">
-              START GAME
+              {mode === "bossrush" ? "FIGHT!" : "START GAME"}
             </button>
             <button onClick={() => setShowTutorial(true)} className="text-muted-foreground hover:text-primary font-body text-xs transition-colors">
               📖 How to Play

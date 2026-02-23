@@ -1,4 +1,5 @@
 import { addCoins } from "@/lib/upgrades";
+import { addAdminNotification } from "@/lib/notifications";
 
 // Simple localStorage-based auth system
 
@@ -153,9 +154,18 @@ export const saveScore = (score: number) => {
     skin: user?.selectedSkin || "default",
   };
   const scores: ScoreEntry[] = JSON.parse(localStorage.getItem(SCORES_KEY) || "[]");
+  const isHighScore = scores.length === 0 || score > scores[0].score;
   scores.push(entry);
   scores.sort((a, b) => b.score - a.score);
   localStorage.setItem(SCORES_KEY, JSON.stringify(scores.slice(0, 100)));
+
+  if (isHighScore && score > 0) {
+    addAdminNotification({
+      type: "high_score",
+      message: `🏆 New High Score: ${score}`,
+      detail: `${entry.username} set a new high score of ${score} points!`,
+    });
+  }
 };
 
 export const getScores = (): ScoreEntry[] => {
@@ -182,6 +192,11 @@ export const purchaseCoinPackage = (packageId: string): { success: boolean; erro
   // Simulate payment success
   addTransaction({ userId: user.id, username: user.username, type: "purchase", amount: pkg.coins, packageName: pkg.name });
   addCoins(pkg.coins);
+  addAdminNotification({
+    type: "purchase",
+    message: `💰 ${user.username} bought ${pkg.name}`,
+    detail: `${pkg.coins} coins purchased ($${pkg.price})`,
+  });
 
   return { success: true };
 };
