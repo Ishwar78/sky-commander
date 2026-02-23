@@ -11,7 +11,7 @@ import { checkShopAchievements } from "@/lib/achievements";
 import { getXPData, LEVEL_REWARDS } from "@/lib/xp";
 
 const WEAPON_COLORS: Record<WeaponType, string> = {
-  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00", triple: "#66ffff",
+  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00", triple: "#66ffff", beam: "#ff4444",
 };
 
 // Mini canvas that animates the weapon's fire pattern
@@ -77,6 +77,16 @@ const WeaponPreview = ({ weaponId }: { weaponId: WeaponType }) => {
         const bx = sx + i * 7;
         ctx.fillRect(bx - 1.5, by, 3, 7);
       }
+    } else if (weaponId === "beam") {
+      // Pulsing beam from ship to top
+      const beamW = 3 + Math.sin(f * 0.3) * 1;
+      const grad = ctx.createLinearGradient(sx, sy - 8, sx, 2);
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, color + "44");
+      ctx.fillStyle = grad;
+      ctx.fillRect(sx - beamW / 2, 2, beamW, sy - 10);
+      ctx.fillStyle = "#ffffff88";
+      ctx.fillRect(sx - 0.5, 2, 1, sy - 10);
     }
 
     ctx.shadowBlur = 0;
