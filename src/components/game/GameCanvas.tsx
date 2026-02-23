@@ -724,6 +724,38 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       return r.life > 0;
     });
 
+    // Aim-assist indicator line
+    if (gs.aimTarget && gs.holdFiring) {
+      const p2 = gs.player;
+      const px = p2.x + p2.width / 2;
+      const py = p2.y;
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.strokeStyle = "#00ffcc";
+      ctx.shadowColor = "#00ffcc";
+      ctx.shadowBlur = 6;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(gs.aimTarget.x, gs.aimTarget.y);
+      ctx.stroke();
+      // Target reticle
+      ctx.globalAlpha = 0.4;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(gs.aimTarget.x, gs.aimTarget.y, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(gs.aimTarget.x - 8, gs.aimTarget.y);
+      ctx.lineTo(gs.aimTarget.x + 8, gs.aimTarget.y);
+      ctx.moveTo(gs.aimTarget.x, gs.aimTarget.y - 8);
+      ctx.lineTo(gs.aimTarget.x, gs.aimTarget.y + 8);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     drawPlayer(ctx, p, gs.shield > 0);
 
     // HUD
@@ -744,11 +776,47 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     ctx.textAlign = "left"; ctx.fillText(`${weaponDef.icon} ${weaponDef.name}`, 12, 52); ctx.shadowBlur = 0;
 
     if (gs.combo >= 2) {
-      ctx.font = "bold 14px Orbitron"; ctx.textAlign = "center";
       const comboAlpha = Math.min(1, gs.comboTimer / 30);
-      ctx.fillStyle = gs.comboMultiplier >= 2.5 ? `rgba(255, 100, 255, ${comboAlpha})` : gs.comboMultiplier >= 1.5 ? `rgba(255, 204, 0, ${comboAlpha})` : `rgba(0, 255, 200, ${comboAlpha})`;
-      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
-      ctx.fillText(`${gs.combo}x COMBO • ${gs.comboMultiplier.toFixed(1)}x`, CANVAS_WIDTH / 2, 65); ctx.shadowBlur = 0;
+      const comboColor = gs.comboMultiplier >= 3 ? `rgba(255, 50, 50, ${comboAlpha})` : gs.comboMultiplier >= 2.5 ? `rgba(255, 100, 255, ${comboAlpha})` : gs.comboMultiplier >= 1.5 ? `rgba(255, 204, 0, ${comboAlpha})` : `rgba(0, 255, 200, ${comboAlpha})`;
+
+      // Combo streak background bar
+      ctx.save();
+      ctx.globalAlpha = comboAlpha * 0.15;
+      const barWidth = Math.min(gs.combo * 12, CANVAS_WIDTH - 40);
+      ctx.fillStyle = comboColor;
+      ctx.shadowColor = comboColor;
+      ctx.shadowBlur = 15;
+      ctx.fillRect(CANVAS_WIDTH / 2 - barWidth / 2, 56, barWidth, 22);
+      ctx.restore();
+
+      // Combo text with pulse effect
+      const pulse = 1 + Math.sin(gs.frameCount * 0.15) * 0.08 * Math.min(gs.combo / 5, 1);
+      ctx.save();
+      ctx.translate(CANVAS_WIDTH / 2, 70);
+      ctx.scale(pulse, pulse);
+      ctx.font = `bold ${Math.min(14 + gs.combo, 22)}px Orbitron`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = comboColor;
+      ctx.shadowColor = comboColor;
+      ctx.shadowBlur = 12;
+      ctx.fillText(`🔥 ${gs.combo}x COMBO • ${gs.comboMultiplier.toFixed(1)}x`, 0, 0);
+      ctx.shadowBlur = 0;
+
+      // Streak tier label
+      if (gs.combo >= 15) {
+        ctx.font = "bold 9px Orbitron";
+        ctx.fillStyle = `rgba(255, 50, 50, ${comboAlpha})`;
+        ctx.fillText("★ UNSTOPPABLE ★", 0, 14);
+      } else if (gs.combo >= 10) {
+        ctx.font = "bold 9px Orbitron";
+        ctx.fillStyle = `rgba(255, 100, 255, ${comboAlpha})`;
+        ctx.fillText("★ ON FIRE ★", 0, 14);
+      } else if (gs.combo >= 5) {
+        ctx.font = "bold 9px Orbitron";
+        ctx.fillStyle = `rgba(255, 204, 0, ${comboAlpha})`;
+        ctx.fillText("★ STREAK ★", 0, 14);
+      }
+      ctx.restore();
     }
 
     const indicators: string[] = [];
