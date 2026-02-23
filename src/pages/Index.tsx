@@ -12,7 +12,7 @@ const Index = () => {
   const user = getCurrentUser();
   const topScores = getScores().slice(0, 5);
   const [dailyPopup, setDailyPopup] = useState<{ amount: number; streak: number } | null>(null);
-  const { canInstall, isInstalled, install } = useInstallPrompt();
+  const { canInstall, isInstalled, install, hasNativePrompt, isiOS } = useInstallPrompt();
 
   useEffect(() => {
     // Auto-show daily bonus popup if available
@@ -125,18 +125,39 @@ const Index = () => {
           </div>
 
           {/* Install PWA button */}
-          {canInstall && (
-            <motion.button
+          {canInstall && !isInstalled && (
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={install}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2 bg-[hsl(var(--neon-green))]/20 border border-[hsl(var(--neon-green))]/40 text-[hsl(var(--neon-green))] font-display text-sm rounded-xl hover:bg-[hsl(var(--neon-green))]/30 transition-all"
+              className="mt-4 flex flex-col items-center gap-2"
             >
-              <Download className="w-4 h-4" />
-              INSTALL APP
-            </motion.button>
+              {hasNativePrompt ? (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={install}
+                  className="inline-flex items-center gap-2 px-6 py-2 bg-[hsl(var(--neon-green))]/20 border border-[hsl(var(--neon-green))]/40 text-[hsl(var(--neon-green))] font-display text-sm rounded-xl hover:bg-[hsl(var(--neon-green))]/30 transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  INSTALL APP
+                </motion.button>
+              ) : (
+                <div className="bg-card/60 backdrop-blur-md rounded-xl neon-border px-4 py-3 text-center max-w-xs">
+                  <p className="font-display text-xs text-[hsl(var(--neon-green))] mb-1 flex items-center justify-center gap-1">
+                    <Download className="w-3 h-3" /> INSTALL APP
+                  </p>
+                  {isiOS ? (
+                    <p className="font-body text-[10px] text-muted-foreground">
+                      Tap <span className="text-primary">Share</span> button → <span className="text-primary">Add to Home Screen</span>
+                    </p>
+                  ) : (
+                    <p className="font-body text-[10px] text-muted-foreground">
+                      Open in browser → Menu (⋮) → <span className="text-primary">Install app</span>
+                    </p>
+                  )}
+                </div>
+              )}
+            </motion.div>
           )}
           {isInstalled && (
             <p className="mt-3 font-body text-[10px] text-[hsl(var(--neon-green))]/60">✓ App installed</p>
@@ -149,6 +170,7 @@ const Index = () => {
               { path: "/achievements", icon: <Award className="w-5 h-5" />, label: "Achievements", color: "text-accent" },
               { path: "/challenges", icon: <Swords className="w-5 h-5" />, label: "Challenges", color: "text-[hsl(var(--neon-pink))]" },
               { path: "/cosmetics", icon: <Sparkles className="w-5 h-5" />, label: "Cosmetics", color: "text-accent" },
+              { path: "/powerups", icon: <Zap className="w-5 h-5" />, label: "Power-Ups", color: "text-[hsl(var(--neon-green))]" },
               { path: "/shop", icon: <ShoppingCart className="w-5 h-5" />, label: "Coin Shop", color: "text-[hsl(var(--neon-yellow))]" },
               { path: "/profile", icon: <UserCircle className="w-5 h-5" />, label: "Profile", color: "text-primary" },
               { path: "/settings", icon: <Settings className="w-5 h-5" />, label: "Settings", color: "text-primary" },
