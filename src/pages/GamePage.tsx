@@ -1,10 +1,17 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, Navigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import GameCanvas from "@/components/game/GameCanvas";
+import { getXPData } from "@/lib/xp";
 
 const GamePage = () => {
   const [searchParams] = useSearchParams();
   const mode = searchParams.get("mode") === "bossrush" ? "bossrush" : "normal";
+  const xpData = getXPData();
+
+  // Gate boss rush behind level 4
+  if (mode === "bossrush" && xpData.level < 4) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background arcade-grid flex flex-col items-center justify-center p-4">

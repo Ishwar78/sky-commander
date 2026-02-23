@@ -1,8 +1,12 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import PvPCanvas from "@/components/game/PvPCanvas";
+import { getXPData } from "@/lib/xp";
 
 const PvPPage = () => {
+  const xpData = getXPData();
+  if (xpData.level < 12) return <Navigate to="/" replace />;
+
   return (
     <div className="min-h-screen bg-background arcade-grid flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-4xl">

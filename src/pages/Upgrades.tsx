@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Lock, Check, Coins } from "lucide-react";
+import { ArrowLeft, Lock, Check, Coins, Star } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   getUpgrades, purchaseUpgrade, purchaseWeapon, equipWeapon, getUpgradeCost,
@@ -8,6 +8,7 @@ import {
   getDailyBonusInfo, claimDailyBonus,
 } from "@/lib/upgrades";
 import { checkShopAchievements } from "@/lib/achievements";
+import { getXPData, LEVEL_REWARDS } from "@/lib/xp";
 
 const WEAPON_COLORS: Record<WeaponType, string> = {
   laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00",

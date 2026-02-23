@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles, Download, Users, Star } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull, Swords, Sparkles, Download, Users, Star, Lock, BarChart3 } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 import { getLifetimeStats } from "@/lib/stats";
@@ -121,24 +121,38 @@ const Index = () => {
               <Gamepad2 className="w-5 h-5" />
               PLAY
             </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/play?mode=bossrush")}
-              className="inline-flex items-center gap-3 px-6 py-4 bg-destructive text-destructive-foreground font-display text-lg rounded-xl hover:shadow-[0_0_30px_hsl(var(--destructive)/0.4)] transition-shadow"
-            >
-              <Skull className="w-5 h-5" />
-              BOSS RUSH
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/pvp")}
-              className="inline-flex items-center gap-3 px-6 py-4 bg-accent text-accent-foreground font-display text-lg rounded-xl hover:shadow-[0_0_30px_hsl(var(--accent)/0.4)] transition-shadow"
-            >
-              <Users className="w-5 h-5" />
-              PVP
-            </motion.button>
+            {(() => {
+              const xp = getXPData();
+              const bossLocked = xp.level < 4;
+              return (
+                <motion.button
+                  whileHover={bossLocked ? {} : { scale: 1.05 }}
+                  whileTap={bossLocked ? {} : { scale: 0.95 }}
+                  onClick={() => !bossLocked && navigate("/play?mode=bossrush")}
+                  className={`inline-flex items-center gap-3 px-6 py-4 font-display text-lg rounded-xl transition-shadow ${bossLocked ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60" : "bg-destructive text-destructive-foreground hover:shadow-[0_0_30px_hsl(var(--destructive)/0.4)]"}`}
+                >
+                  {bossLocked ? <Lock className="w-5 h-5" /> : <Skull className="w-5 h-5" />}
+                  BOSS RUSH
+                  {bossLocked && <span className="text-xs">LVL 4</span>}
+                </motion.button>
+              );
+            })()}
+            {(() => {
+              const xp = getXPData();
+              const pvpLocked = xp.level < 12;
+              return (
+                <motion.button
+                  whileHover={pvpLocked ? {} : { scale: 1.05 }}
+                  whileTap={pvpLocked ? {} : { scale: 0.95 }}
+                  onClick={() => !pvpLocked && navigate("/pvp")}
+                  className={`inline-flex items-center gap-3 px-6 py-4 font-display text-lg rounded-xl transition-shadow ${pvpLocked ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60" : "bg-accent text-accent-foreground hover:shadow-[0_0_30px_hsl(var(--accent)/0.4)]"}`}
+                >
+                  {pvpLocked ? <Lock className="w-5 h-5" /> : <Users className="w-5 h-5" />}
+                  PVP
+                  {pvpLocked && <span className="text-xs">LVL 12</span>}
+                </motion.button>
+              );
+            })()}
           </div>
 
           {/* Install PWA button */}
@@ -190,6 +204,7 @@ const Index = () => {
               { path: "/powerups", icon: <Zap className="w-5 h-5" />, label: "Power-Ups", color: "text-[hsl(var(--neon-green))]" },
               { path: "/shop", icon: <ShoppingCart className="w-5 h-5" />, label: "Coin Shop", color: "text-[hsl(var(--neon-yellow))]" },
               { path: "/profile", icon: <UserCircle className="w-5 h-5" />, label: "Profile", color: "text-primary" },
+              { path: "/levels", icon: <BarChart3 className="w-5 h-5" />, label: "Levels", color: "text-accent" },
               { path: "/settings", icon: <Settings className="w-5 h-5" />, label: "Settings", color: "text-primary" },
             ].map((item) => (
               <button
