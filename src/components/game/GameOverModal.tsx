@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { saveScore } from "@/lib/auth";
-import { Flame, Zap, Trophy, Swords } from "lucide-react";
+import { addCoins } from "@/lib/upgrades";
+import { Flame, Zap, Trophy, Swords, Coins } from "lucide-react";
 
 interface GameOverModalProps {
   score: number;
@@ -13,13 +14,17 @@ interface GameOverModalProps {
 
 const GameOverModal = ({ score, maxCombo, maxMultiplier, wave, onRestart }: GameOverModalProps) => {
   const navigate = useNavigate();
+  const coinsEarned = Math.max(1, Math.floor(score / 10));
 
-  if (score > 0) saveScore(score);
+  if (score > 0) {
+    saveScore(score);
+    addCoins(coinsEarned);
+  }
 
   const stats = [
     { icon: Trophy, label: "FINAL SCORE", value: `${score}`, color: "text-primary" },
     { icon: Swords, label: "WAVE", value: `${wave}`, color: "text-secondary" },
-    { icon: Flame, label: "MAX COMBO", value: `${maxCombo}x`, color: "text-[hsl(50,100%,55%)]" },
+    { icon: Flame, label: "MAX COMBO", value: `${maxCombo}x`, color: "text-[hsl(var(--neon-yellow))]" },
     { icon: Zap, label: "BEST MULTI", value: `${maxMultiplier.toFixed(1)}x`, color: "text-accent" },
   ];
 
@@ -35,7 +40,19 @@ const GameOverModal = ({ score, maxCombo, maxMultiplier, wave, onRestart }: Game
         transition={{ type: "spring", damping: 15 }}
         className="text-center w-full max-w-xs px-4"
       >
-        <h2 className="font-display text-4xl text-destructive text-glow-pink mb-6">GAME OVER</h2>
+        <h2 className="font-display text-4xl text-destructive text-glow-pink mb-4">GAME OVER</h2>
+
+        {/* Coins earned */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.15, type: "spring" }}
+          className="flex items-center justify-center gap-2 mb-4 bg-[hsl(var(--neon-yellow))]/10 rounded-lg py-2 border border-[hsl(var(--neon-yellow))]/30"
+        >
+          <Coins className="w-5 h-5 text-[hsl(var(--neon-yellow))]" />
+          <span className="font-display text-lg text-[hsl(var(--neon-yellow))]">+{coinsEarned}</span>
+          <span className="font-body text-xs text-muted-foreground">COINS</span>
+        </motion.div>
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           {stats.map((s, i) => (
@@ -61,12 +78,18 @@ const GameOverModal = ({ score, maxCombo, maxMultiplier, wave, onRestart }: Game
             PLAY AGAIN
           </button>
           <button
-            onClick={() => navigate("/leaderboard")}
-            className="flex-1 px-5 py-3 border border-primary/40 text-primary font-display text-sm rounded-lg hover:bg-primary/10 transition-colors"
+            onClick={() => navigate("/upgrades")}
+            className="flex-1 px-5 py-3 border border-[hsl(var(--neon-yellow))]/40 text-[hsl(var(--neon-yellow))] font-display text-sm rounded-lg hover:bg-[hsl(var(--neon-yellow))]/10 transition-colors"
           >
-            LEADERBOARD
+            UPGRADES
           </button>
         </div>
+        <button
+          onClick={() => navigate("/leaderboard")}
+          className="w-full mt-2 px-5 py-2 border border-primary/30 text-primary font-display text-xs rounded-lg hover:bg-primary/10 transition-colors"
+        >
+          LEADERBOARD
+        </button>
       </motion.div>
     </motion.div>
   );
