@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart } from "lucide-react";
+import { Gamepad2, Trophy, Zap, User, LogOut, ShieldCheck, Palette, Settings, Rocket, Coins, Gift, Award, UserCircle, ShoppingCart, Skull } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import { getCurrentUser, logout, isAdmin, getScores } from "@/lib/auth";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
@@ -101,15 +101,26 @@ const Index = () => {
             Dodge enemy fire. Destroy invaders. Climb the leaderboard.
           </p>
 
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate("/play")}
-            className="inline-flex items-center gap-3 px-10 py-4 bg-primary text-primary-foreground font-display text-xl rounded-xl box-glow-cyan hover:shadow-[0_0_40px_hsl(var(--neon-cyan)/0.5)] transition-shadow"
-          >
-            <Gamepad2 className="w-6 h-6" />
-            PLAY NOW
-          </motion.button>
+          <div className="flex gap-3">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/play")}
+              className="inline-flex items-center gap-3 px-8 py-4 bg-primary text-primary-foreground font-display text-lg rounded-xl box-glow-cyan hover:shadow-[0_0_40px_hsl(var(--neon-cyan)/0.5)] transition-shadow"
+            >
+              <Gamepad2 className="w-5 h-5" />
+              PLAY
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/play?mode=bossrush")}
+              className="inline-flex items-center gap-3 px-6 py-4 bg-destructive text-destructive-foreground font-display text-lg rounded-xl hover:shadow-[0_0_30px_hsl(var(--destructive)/0.4)] transition-shadow"
+            >
+              <Skull className="w-5 h-5" />
+              BOSS RUSH
+            </motion.button>
+          </div>
 
           <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 mt-8 w-full max-w-md mx-auto">
             {[

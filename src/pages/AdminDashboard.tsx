@@ -3,16 +3,17 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Users, Gamepad2, Trophy, BarChart3, Trash2, Crown, Clock, Medal,
-  ShieldBan, ShieldCheck, Coins, CreditCard, Ban, CheckCircle, Search, Eye
+  ShieldBan, ShieldCheck, Coins, CreditCard, Ban, CheckCircle, Search, Eye, Bell
 } from "lucide-react";
 import {
   isAdmin, getAnalytics, getUsers, getScores, getTransactions,
   banUser, unbanUser, type User, type CoinTransaction
 } from "@/lib/auth";
+import { getAdminNotifications, markNotificationsRead, clearNotifications, getUnreadCount } from "@/lib/notifications";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"overview" | "users" | "payments" | "scores" | "winners">("overview");
+  const [tab, setTab] = useState<"overview" | "users" | "payments" | "scores" | "winners" | "notifications">("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [banModal, setBanModal] = useState<{ userId: string; username: string } | null>(null);
   const [banReason, setBanReason] = useState("");
@@ -27,6 +28,8 @@ const AdminDashboard = () => {
   const users = getUsers().filter((u) => u.role !== "admin");
   const scores = getScores();
   const transactions = getTransactions();
+  const notifications = getAdminNotifications();
+  const unreadCount = getUnreadCount();
 
   const filteredUsers = users.filter((u) =>
     u.username.toLowerCase().includes(searchQuery.toLowerCase())
@@ -85,6 +88,7 @@ const AdminDashboard = () => {
 
   const tabs = [
     { id: "overview" as const, label: "OVERVIEW", icon: BarChart3 },
+    { id: "notifications" as const, label: `ALERTS${unreadCount > 0 ? ` (${unreadCount})` : ""}`, icon: Bell },
     { id: "users" as const, label: "USERS", icon: Users },
     { id: "payments" as const, label: "PAYMENTS", icon: CreditCard },
     { id: "winners" as const, label: "WINNERS", icon: Trophy },
@@ -477,6 +481,60 @@ const AdminDashboard = () => {
                 </div>
               ))}
               {scores.length === 0 && <p className="text-muted-foreground text-sm font-body">No scores yet</p>}
+            </div>
+          </div>
+        )}
+
+        {/* NOTIFICATIONS */}
+        {tab === "notifications" && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <button
+                onClick={() => { markNotificationsRead(); forceUpdate((n) => n + 1); }}
+                className="text-primary text-xs font-display hover:text-primary/80 transition-colors"
+              >
+                Mark all read
+              </button>
+              {notifications.length > 0 && (
+                <button
+                  onClick={() => { clearNotifications(); forceUpdate((n) => n + 1); }}
+                  className="text-destructive text-xs font-body flex items-center gap-1 hover:text-destructive/80"
+                >
+                  <Trash2 className="w-3 h-3" /> Clear All
+                </button>
+              )}
+            </div>
+            <div className="bg-card/60 backdrop-blur-md rounded-xl neon-border p-4">
+              <h3 className="font-display text-xs text-primary tracking-widest mb-3">NOTIFICATIONS ({notifications.length})</h3>
+              <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`flex items-start gap-3 py-3 px-3 rounded-lg border transition-colors ${
+                      n.read ? "border-border/10 bg-transparent" : "border-primary/20 bg-primary/5"
+                    }`}
+                  >
+                    <span className="text-lg mt-0.5">
+                      {n.type === "high_score" ? "🏆" : n.type === "purchase" ? "💰" : n.type === "new_user" ? "👤" : "🎖️"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-body text-sm text-foreground">{n.message}</p>
+                      {n.detail && <p className="font-body text-[10px] text-muted-foreground mt-0.5">{n.detail}</p>}
+                      <p className="font-body text-[10px] text-muted-foreground/60 mt-1">
+                        {new Date(n.date).toLocaleString()}
+                      </p>
+                    </div>
+                    {!n.read && <div className="w-2 h-2 rounded-full bg-primary mt-2 shrink-0" />}
+                  </div>
+                ))}
+                {notifications.length === 0 && (
+                  <div className="text-center py-8">
+                    <Bell className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-muted-foreground text-sm font-body">No notifications yet</p>
+                    <p className="text-muted-foreground/60 text-xs font-body mt-1">Alerts will appear here when players set high scores or make purchases</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
