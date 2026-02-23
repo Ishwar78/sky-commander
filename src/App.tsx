@@ -6,6 +6,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import GamePage from "./pages/GamePage";
 import Leaderboard from "./pages/Leaderboard";
+import Skins from "./pages/Skins";
+import Login from "./pages/Login";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +23,9 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/play" element={<GamePage />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/skins" element={<Skins />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
