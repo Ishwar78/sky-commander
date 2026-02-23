@@ -48,7 +48,7 @@ const ENEMY_COLORS: Record<string, string> = {
   normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000", shield: "#00aaff", stealth: "#88ffbb", splitter: "#ff88cc", mini: "#ff88cc",
 };
 const WEAPON_COLORS: Record<WeaponType, string> = {
-  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00",
+  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00", triple: "#66ffff",
 };
 
 const ENEMY_SHOOT_INTERVALS: Record<string, number> = {
@@ -299,6 +299,11 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         gs.bullets.push({ x: cx - 3, y: p.y, width: 6, height: 10, speed: 6, damage: 2 + dmgBonus, homing: true, targetId: nearest?.id });
         break;
       }
+      case "triple":
+        for (let i = -1; i <= 1; i++) {
+          gs.bullets.push({ x: cx - 2 + i * 8, y: p.y + Math.abs(i) * 3, width: 4, height: 10, speed: 8, damage: 1 + dmgBonus, angle: i * 0.05 + aimAngle * 0.6 });
+        }
+        break;
     }
     gs.lastShot = Date.now();
     soundEngine.shoot();

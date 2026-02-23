@@ -1,6 +1,6 @@
 // Persistent upgrade & weapon system
 
-export type WeaponType = "laser" | "spread" | "homing";
+export type WeaponType = "laser" | "spread" | "homing" | "triple";
 
 export interface WeaponDef {
   id: WeaponType;
@@ -16,6 +16,7 @@ export const WEAPONS: WeaponDef[] = [
   { id: "laser", name: "LASER", desc: "Fast single shots", icon: "⚡", cost: 0, fireRate: 150, damage: 1 },
   { id: "spread", name: "SPREAD", desc: "3-bullet fan pattern", icon: "🔥", cost: 300, fireRate: 220, damage: 1 },
   { id: "homing", name: "HOMING", desc: "Tracks nearest enemy", icon: "🎯", cost: 500, fireRate: 350, damage: 2 },
+  { id: "triple", name: "TRIPLE", desc: "3 tight parallel bullets", icon: "🔱", cost: 400, fireRate: 200, damage: 1 },
 ];
 
 export interface UpgradeDef {

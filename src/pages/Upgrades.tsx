@@ -11,7 +11,7 @@ import { checkShopAchievements } from "@/lib/achievements";
 import { getXPData, LEVEL_REWARDS } from "@/lib/xp";
 
 const WEAPON_COLORS: Record<WeaponType, string> = {
-  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00",
+  laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00", triple: "#66ffff",
 };
 
 // Mini canvas that animates the weapon's fire pattern
@@ -59,19 +59,24 @@ const WeaponPreview = ({ weaponId }: { weaponId: WeaponType }) => {
     } else if (weaponId === "homing") {
       const progress = (f * 2.5) % 80;
       const t = progress / 80;
-      // Curving path toward a target
       const tx = w / 2 + 20, ty = 12;
       const bx = sx + (tx - sx) * t + Math.sin(t * Math.PI) * 15;
       const by = sy - 8 + (ty - (sy - 8)) * t;
       ctx.beginPath();
       ctx.arc(bx, by, 3, 0, Math.PI * 2);
       ctx.fill();
-      // Target dot
       ctx.fillStyle = "#ff3366";
       ctx.shadowColor = "#ff3366";
       ctx.beginPath();
       ctx.arc(tx, ty, 3, 0, Math.PI * 2);
       ctx.fill();
+    } else if (weaponId === "triple") {
+      for (let i = -1; i <= 1; i++) {
+        const progress = (f * 3) % (h + 10);
+        const by = (h - 20) - progress;
+        const bx = sx + i * 7;
+        ctx.fillRect(bx - 1.5, by, 3, 7);
+      }
     }
 
     ctx.shadowBlur = 0;
