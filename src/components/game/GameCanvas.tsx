@@ -8,15 +8,19 @@ import { getSkin, type ShipSkin } from "@/lib/skins";
 import { getSettings, DIFFICULTY_MULTIPLIERS } from "@/lib/settings";
 import { getUpgrades, getStatBonuses, WEAPONS, type WeaponType } from "@/lib/upgrades";
 import { checkGameAchievements, ACHIEVEMENTS } from "@/lib/achievements";
+import Tutorial, { hasTutorialBeenSeen } from "./Tutorial";
 
 interface Player { x: number; y: number; width: number; height: number; speed: number; }
 interface Bullet { x: number; y: number; width: number; height: number; speed: number; damage: number; angle?: number; homing?: boolean; targetId?: number; }
 interface EnemyBullet { x: number; y: number; width: number; height: number; speed: number; angle: number; }
 interface Enemy {
   x: number; y: number; width: number; height: number; speed: number; health: number; maxHealth: number;
-  type: "normal" | "fast" | "tank" | "boss";
+  type: "normal" | "fast" | "tank" | "boss" | "shield" | "stealth";
   lastShot: number;
   id: number;
+  shieldFacing?: "front"; // shield enemies block frontal hits
+  stealthAlpha?: number; // stealth enemies fade
+  stealthPhase?: number; // phase counter for stealth cycle
 }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number; }
 interface Star { x: number; y: number; speed: number; size: number; brightness: number; }
@@ -36,14 +40,14 @@ const POWERUP_LABELS: Record<string, string> = {
   shield: "🛡️", rapid: "⚡", multi: "🔥", health: "💚",
 };
 const ENEMY_COLORS: Record<string, string> = {
-  normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000",
+  normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000", shield: "#00aaff", stealth: "#88ffbb",
 };
 const WEAPON_COLORS: Record<WeaponType, string> = {
   laser: "#00ffcc", spread: "#ff66ff", homing: "#ffaa00",
 };
 
 const ENEMY_SHOOT_INTERVALS: Record<string, number> = {
-  normal: 3000, fast: 4000, tank: 2000, boss: 800,
+  normal: 3000, fast: 4000, tank: 2000, boss: 800, shield: 2500, stealth: 3500,
 };
 
 let enemyIdCounter = 0;
@@ -87,6 +91,7 @@ const GameCanvas = () => {
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [muted, setMuted] = useState(false);
   const [canvasScale, setCanvasScale] = useState(1);
   const [wave, setWave] = useState(1);
@@ -95,6 +100,10 @@ const GameCanvas = () => {
   const [maxMultiplier, setMaxMultiplier] = useState(1);
   const [currentWeapon, setCurrentWeapon] = useState<WeaponType>("laser");
   const [achievementPopup, setAchievementPopup] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!hasTutorialBeenSeen()) setShowTutorial(true);
+  }, []);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -153,13 +162,20 @@ const GameCanvas = () => {
     let speed = (1.5 + gs.difficulty * 0.3 + Math.random()) * dm.speed;
     let hp = 1;
 
-    if (r < 0.2) {
+    if (r < 0.12) {
+      type = "stealth"; w = 28; h = 32; speed = (1.8 + gs.difficulty * 0.25) * dm.speed; hp = 2;
+    } else if (r < 0.22) {
+      type = "shield"; w = 35; h = 40; speed = (1.2 + gs.difficulty * 0.2) * dm.speed; hp = Math.round((3 + Math.floor(gs.difficulty * 0.5)) * dm.health);
+    } else if (r < 0.38) {
       type = "fast"; w = 22; h = 28; speed = (3 + gs.difficulty * 0.4) * dm.speed; hp = 1;
-    } else if (r < 0.35) {
+    } else if (r < 0.5) {
       type = "tank"; w = 45; h = 45; speed = (0.8 + gs.difficulty * 0.15) * dm.speed; hp = Math.round((4 + Math.floor(gs.difficulty)) * dm.health);
     }
 
-    gs.enemies.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -h - 10, width: w, height: h, speed, health: hp, maxHealth: hp, type, lastShot: Date.now(), id: enemyIdCounter++ });
+    const enemy: Enemy = { x: Math.random() * (CANVAS_WIDTH - w), y: -h - 10, width: w, height: h, speed, health: hp, maxHealth: hp, type, lastShot: Date.now(), id: enemyIdCounter++ };
+    if (type === "shield") enemy.shieldFacing = "front";
+    if (type === "stealth") { enemy.stealthAlpha = 0; enemy.stealthPhase = Math.random() * Math.PI * 2; }
+    gs.enemies.push(enemy);
   };
 
   const spawnBoss = () => {
@@ -269,6 +285,12 @@ const GameCanvas = () => {
   const drawEnemy = (ctx: CanvasRenderingContext2D, e: Enemy) => {
     const color = ENEMY_COLORS[e.type];
     ctx.save();
+
+    // Stealth: apply alpha
+    if (e.type === "stealth") {
+      ctx.globalAlpha = e.stealthAlpha ?? 1;
+    }
+
     ctx.fillStyle = color;
     ctx.shadowColor = color;
     ctx.shadowBlur = e.type === "boss" ? 20 : 10;
@@ -292,6 +314,40 @@ const GameCanvas = () => {
       ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 8;
       ctx.fillRect(cx - 15, cy - 5, 8, 8);
       ctx.fillRect(cx + 7, cy - 5, 8, 8);
+    } else if (e.type === "shield") {
+      // Diamond body
+      const cx = e.x + e.width / 2, cy = e.y + e.height / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, e.y);
+      ctx.lineTo(e.x + e.width, cy);
+      ctx.lineTo(cx, e.y + e.height);
+      ctx.lineTo(e.x, cy);
+      ctx.closePath();
+      ctx.fill();
+      // Front shield bar
+      ctx.fillStyle = "rgba(0, 170, 255, 0.7)";
+      ctx.shadowColor = "#00aaff"; ctx.shadowBlur = 12;
+      ctx.fillRect(e.x - 2, e.y + e.height - 6, e.width + 4, 6);
+      // Health bar
+      if (e.health < e.maxHealth) {
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(e.x, e.y - 8, e.width, 4);
+        ctx.fillStyle = "#00aaff";
+        ctx.fillRect(e.x, e.y - 8, e.width * (e.health / e.maxHealth), 4);
+      }
+    } else if (e.type === "stealth") {
+      // Ghost-like shape
+      const cx = e.x + e.width / 2;
+      ctx.beginPath();
+      ctx.arc(cx, e.y + e.height / 3, e.width / 2, Math.PI, 0);
+      ctx.lineTo(e.x + e.width, e.y + e.height);
+      // Wavy bottom
+      for (let i = e.width; i >= 0; i -= e.width / 4) {
+        const waveY = e.y + e.height - (i % (e.width / 2) === 0 ? 0 : 8);
+        ctx.lineTo(e.x + i, waveY);
+      }
+      ctx.closePath();
+      ctx.fill();
     } else if (e.type === "fast") {
       ctx.beginPath();
       ctx.moveTo(e.x + e.width / 2, e.y + e.height);
@@ -316,7 +372,7 @@ const GameCanvas = () => {
       ctx.closePath();
       ctx.fill();
     }
-    if (e.type !== "boss") {
+    if (e.type !== "boss" && e.type !== "stealth") {
       ctx.fillStyle = "#ffcc00";
       ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 5;
       ctx.fillRect(e.x + e.width / 2 - 6, e.y + e.height / 2, 3, 3);
@@ -449,23 +505,42 @@ const GameCanvas = () => {
     gs.enemies = gs.enemies.filter((e) => {
       if (e.type === "boss") { e.y = Math.min(60, e.y + e.speed); e.x += Math.sin(gs.frameCount * 0.02) * 1.5; e.x = Math.max(0, Math.min(CANVAS_WIDTH - e.width, e.x)); }
       else { e.y += e.speed; }
+
+      // Stealth: cycle alpha
+      if (e.type === "stealth") {
+        e.stealthPhase = (e.stealthPhase || 0) + 0.03;
+        e.stealthAlpha = 0.15 + Math.abs(Math.sin(e.stealthPhase)) * 0.85;
+      }
+
       drawEnemy(ctx, e);
 
       if (e.y > 0 && e.y < CANVAS_HEIGHT - 100) {
+        // Stealth enemies only shoot when visible
+        const canShoot = e.type !== "stealth" || (e.stealthAlpha ?? 1) > 0.5;
         const shootInterval = ENEMY_SHOOT_INTERVALS[e.type] / gs.difficultyMult.speed;
-        if (now - e.lastShot > shootInterval) { shootEnemyBullet(e); e.lastShot = now; }
+        if (canShoot && now - e.lastShot > shootInterval) { shootEnemyBullet(e); e.lastShot = now; }
       }
 
       for (let i = gs.bullets.length - 1; i >= 0; i--) {
         const b = gs.bullets[i];
         if (b.x < e.x + e.width && b.x + b.width > e.x && b.y < e.y + e.height && b.y + b.height > e.y) {
+          // Stealth: can't be hit when nearly invisible
+          if (e.type === "stealth" && (e.stealthAlpha ?? 1) < 0.3) {
+            continue;
+          }
+          // Shield: blocks bullets coming from below (player shoots upward)
+          if (e.type === "shield" && e.shieldFacing === "front" && b.y + b.height > e.y + e.height * 0.5 && !b.homing) {
+            gs.bullets.splice(i, 1);
+            spawnParticles(b.x, b.y, "#00aaff", 4);
+            continue;
+          }
           gs.bullets.splice(i, 1);
           e.health -= b.damage;
           if (e.health <= 0) {
             gs.combo++; gs.comboTimer = 120; gs.comboMultiplier = 1 + Math.floor(gs.combo / 3) * 0.5;
             if (gs.combo > gs.maxCombo) { gs.maxCombo = gs.combo; setMaxCombo(gs.maxCombo); }
             if (gs.comboMultiplier > maxMultiplier) { setMaxMultiplier(gs.comboMultiplier); }
-            const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "fast" ? 15 : 10;
+            const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "shield" ? 25 : e.type === "stealth" ? 20 : e.type === "fast" ? 15 : 10;
             gs.score += Math.round(basePts * gs.comboMultiplier); setScore(gs.score);
             gs.waveKills++;
             spawnParticles(e.x + e.width / 2, e.y + e.height / 2, ENEMY_COLORS[e.type], e.type === "boss" ? 30 : 12);
@@ -701,15 +776,26 @@ const GameCanvas = () => {
         </div>
       )}
 
-      {!gameStarted && (
+      {showTutorial && (
+        <div style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
+          <Tutorial onComplete={() => setShowTutorial(false)} />
+        </div>
+      )}
+
+      {!gameStarted && !showTutorial && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg" style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
           <h2 className="font-display text-3xl text-glow-cyan mb-4 text-primary">READY?</h2>
           <p className="text-muted-foreground mb-2 text-sm font-body">Arrow keys to move • Space to shoot</p>
           <p className="text-muted-foreground mb-2 text-xs font-body">P to pause • 1/2/3 to switch weapons</p>
           <p className="text-muted-foreground mb-6 text-xs font-body">Chain kills for combo multiplier!</p>
-          <button onClick={startGame} className="px-8 py-3 bg-primary text-primary-foreground font-display text-lg rounded-lg box-glow-cyan hover:scale-105 transition-transform">
-            START GAME
-          </button>
+          <div className="flex flex-col items-center gap-3">
+            <button onClick={startGame} className="px-8 py-3 bg-primary text-primary-foreground font-display text-lg rounded-lg box-glow-cyan hover:scale-105 transition-transform">
+              START GAME
+            </button>
+            <button onClick={() => setShowTutorial(true)} className="text-muted-foreground hover:text-primary font-body text-xs transition-colors">
+              📖 How to Play
+            </button>
+          </div>
         </div>
       )}
 
