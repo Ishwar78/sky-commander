@@ -14,7 +14,7 @@ interface PvPPlayer {
   bullets: PvPBullet[]; lastShot: number;
   color: string; name: string;
 }
-interface PvPBullet { x: number; y: number; vx: number; vy: number; width: number; height: number; }
+interface PvPBullet { x: number; y: number; vx: number; vy: number; width: number; height: number; kills: number; }
 interface PvPEnemy {
   x: number; y: number; width: number; height: number; speed: number;
   health: number; maxHealth: number; type: string; side: 0 | 1; id: number;
@@ -153,12 +153,12 @@ const PvPCanvas = () => {
 
     // Shooting
     if (gs.keys["f"] && now - p1.lastShot > 150) {
-      p1.bullets.push({ x: p1.x + p1.width / 2 - 2, y: p1.y, width: 4, height: 10, vx: 0, vy: -8 });
+      p1.bullets.push({ x: p1.x + p1.width / 2 - 2, y: p1.y, width: 4, height: 10, vx: 0, vy: -8, kills: 0 });
       p1.lastShot = now;
       soundEngine.shoot();
     }
     if (gs.keys["/"] && now - p2.lastShot > 150) {
-      p2.bullets.push({ x: p2.x + p2.width / 2 - 2, y: p2.y, width: 4, height: 10, vx: 0, vy: -8 });
+      p2.bullets.push({ x: p2.x + p2.width / 2 - 2, y: p2.y, width: 4, height: 10, vx: 0, vy: -8, kills: 0 });
       p2.lastShot = now;
       soundEngine.shoot();
     }
@@ -278,11 +278,19 @@ const PvPCanvas = () => {
       for (let i = player.bullets.length - 1; i >= 0; i--) {
         const b = player.bullets[i];
         if (b.x < e.x + e.width && b.x + b.width > e.x && b.y < e.y + e.height && b.y + b.height > e.y) {
-          player.bullets.splice(i, 1);
           e.health--;
           if (e.health <= 0) {
+            // Bullet grows on kill instead of being removed
+            b.kills++;
+            b.width = 4 + b.kills * 3;
+            b.height = 10 + b.kills * 4;
+            b.x = b.x - 1.5; // re-center
             player.score += e.type === "tank" ? 30 : e.type === "fast" ? 15 : 10;
-            spawnParticles(e.x + e.width / 2, e.y + e.height / 2, cfg.color, 10);
+            spawnParticles(e.x + e.width / 2, e.y + e.height / 2, cfg.color, 12);
+            // Score popup particle
+            for (let j = 0; j < 3; j++) {
+              gs.particles.push({ x: e.x + e.width / 2, y: e.y, vx: (Math.random() - 0.5) * 2, vy: -2 - Math.random() * 2, life: 30, maxLife: 30, color: "#ffdd00", size: 3 + Math.random() * 2 });
+            }
             soundEngine.explosion();
             setScores([gs.players[0].score, gs.players[1].score]);
             return false;
