@@ -10,6 +10,7 @@ import { getUpgrades, getStatBonuses, WEAPONS, type WeaponType } from "@/lib/upg
 import { checkGameAchievements, ACHIEVEMENTS } from "@/lib/achievements";
 import { getCosmetics, getCosmeticById } from "@/lib/cosmetics";
 import { updateChallengeProgress } from "@/lib/challenges";
+import { getActiveBoosts, clearActiveBoosts, POWER_UP_BOOSTS } from "@/pages/PowerUpShop";
 import Tutorial, { hasTutorialBeenSeen } from "./Tutorial";
 
 interface Player { x: number; y: number; width: number; height: number; speed: number; }
@@ -99,6 +100,9 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     cosmeticTrailColor2: null as string | null,
     cosmeticBulletColor: null as string | null,
     cosmeticBulletColor2: null as string | null,
+    doubleScoreTimer: 0,
+    armorTimer: 0,
+    magnetActive: false,
   });
   const animFrameRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -162,7 +166,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
   };
 
   const spawnPowerUp = (x: number, y: number) => {
-    if (Math.random() > 0.2) return;
+    const dropChance = gameStateRef.current.magnetActive ? 0.4 : 0.2;
+    if (Math.random() > dropChance) return;
     const types: PowerUp["type"][] = ["shield", "rapid", "multi", "health"];
     gameStateRef.current.powerUps.push({ x, y, width: 20, height: 20, speed: 2, type: types[Math.floor(Math.random() * types.length)] });
   };
@@ -452,6 +457,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     if (gs.shield > 0) gs.shield--;
     if (gs.rapidFire > 0) gs.rapidFire--;
     if (gs.multiShot > 0) gs.multiShot--;
+    if (gs.doubleScoreTimer > 0) gs.doubleScoreTimer--;
+    if (gs.armorTimer > 0) gs.armorTimer--;
 
     if (gs.comboTimer > 0) {
       gs.comboTimer--;
@@ -587,7 +594,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
             if (gs.combo > gs.maxCombo) { gs.maxCombo = gs.combo; setMaxCombo(gs.maxCombo); }
             if (gs.comboMultiplier > maxMultiplier) { setMaxMultiplier(gs.comboMultiplier); }
             const basePts = e.type === "boss" ? 200 : e.type === "tank" ? 30 : e.type === "shield" ? 25 : e.type === "splitter" ? 20 : e.type === "stealth" ? 20 : e.type === "fast" ? 15 : e.type === "mini" ? 5 : 10;
-            gs.score += Math.round(basePts * gs.comboMultiplier); setScore(gs.score);
+            const scoreMult = gs.doubleScoreTimer > 0 ? 2 : 1;
+            gs.score += Math.round(basePts * gs.comboMultiplier * scoreMult); setScore(gs.score);
             gs.waveKills++;
             const explosionColor = gs.cosmeticExplosionColor || ENEMY_COLORS[e.type];
             spawnParticles(e.x + e.width / 2, e.y + e.height / 2, explosionColor, e.type === "boss" ? 30 : 12);
@@ -621,7 +629,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         if (gs.shield > 0) { gs.shield = 0; spawnParticles(e.x + e.width / 2, e.y + e.height / 2, "#00ccff", 15); soundEngine.explosion(); }
         else {
           const dmg = e.type === "boss" ? 40 : e.type === "tank" ? 30 : 20;
-          gs.health -= dmg; setHealth(gs.health); soundEngine.hit(); triggerShake(10);
+          const actualDmg = gs.armorTimer > 0 ? Math.round(dmg * 0.5) : dmg;
+          gs.health -= actualDmg; setHealth(gs.health); soundEngine.hit(); triggerShake(10);
           spawnParticles(e.x + e.width / 2, e.y + e.height / 2, "#ffcc00", 8);
           gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0; gs.noDamageKills = 0;
           if (gs.health <= 0) { gs.gameOver = true; setGameOver(true); soundEngine.gameOver(); soundEngine.stopMusic(); }
@@ -642,7 +651,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       ctx.beginPath(); ctx.arc(eb.x + eb.width / 2, eb.y + eb.height / 2, eb.width / 2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       if (eb.x < p.x + p.width && eb.x + eb.width > p.x && eb.y < p.y + p.height && eb.y + eb.height > p.y) {
         if (gs.shield > 0) { gs.shield = Math.max(0, gs.shield - 60); spawnParticles(eb.x, eb.y, "#00ccff", 5); }
-        else { gs.health -= 10; setHealth(gs.health); soundEngine.hit(); triggerShake(4); gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0; gs.noDamageKills = 0; spawnParticles(eb.x, eb.y, "#ff4444", 5); if (gs.health <= 0) { gs.gameOver = true; setGameOver(true); soundEngine.gameOver(); soundEngine.stopMusic(); } }
+        else { const bulletDmg = gs.armorTimer > 0 ? 5 : 10; gs.health -= bulletDmg; setHealth(gs.health); soundEngine.hit(); triggerShake(4); gs.combo = 0; gs.comboMultiplier = 1; gs.comboTimer = 0; gs.noDamageKills = 0; spawnParticles(eb.x, eb.y, "#ff4444", 5); if (gs.health <= 0) { gs.gameOver = true; setGameOver(true); soundEngine.gameOver(); soundEngine.stopMusic(); } }
         return false;
       }
       return eb.x > -10 && eb.x < CANVAS_WIDTH + 10 && eb.y > -10 && eb.y < CANVAS_HEIGHT + 10;
@@ -764,6 +773,17 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       const c = getCosmeticById(cosState.equipped.bullet);
       if (c) { gs.cosmeticBulletColor = c.color; gs.cosmeticBulletColor2 = c.preview; }
     } else { gs.cosmeticBulletColor = null; gs.cosmeticBulletColor2 = null; }
+
+    // Apply power-up boosts
+    const boosts = getActiveBoosts();
+    gs.doubleScoreTimer = 0; gs.armorTimer = 0; gs.magnetActive = false;
+    if (boosts.includes("boost_shield")) gs.shield = 600 + gs.shieldDurBonus;
+    if (boosts.includes("boost_rapid")) gs.rapidFire = 600;
+    if (boosts.includes("boost_health")) { gs.health += 50; gs.maxHealth += 50; }
+    if (boosts.includes("boost_double")) gs.doubleScoreTimer = 3600; // ~60s at 60fps
+    if (boosts.includes("boost_magnet")) gs.magnetActive = true;
+    if (boosts.includes("boost_armor")) gs.armorTimer = 1800; // ~30s
+    clearActiveBoosts();
 
     setScore(0); setHealth(gs.maxHealth); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0); setMaxCombo(0); setMaxMultiplier(1);
     initStars();
