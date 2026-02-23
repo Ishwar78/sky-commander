@@ -200,6 +200,35 @@ class SoundEngine {
     });
   }
 
+  levelUp() {
+    if (this.muted) return;
+    const ctx = this.getCtx();
+    // Triumphant fanfare: ascending arpeggio with harmonics
+    const notes = [523, 659, 784, 1047, 1319, 1568];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15 * this.volume, ctx.currentTime + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.4);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.12);
+      osc.stop(ctx.currentTime + i * 0.12 + 0.4);
+    });
+    // Add a shimmering high note
+    const shimmer = ctx.createOscillator();
+    const sGain = ctx.createGain();
+    shimmer.type = "triangle";
+    shimmer.frequency.setValueAtTime(2093, ctx.currentTime + 0.5);
+    shimmer.frequency.exponentialRampToValueAtTime(1047, ctx.currentTime + 1.2);
+    sGain.gain.setValueAtTime(0.08 * this.volume, ctx.currentTime + 0.5);
+    sGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+    shimmer.connect(sGain).connect(ctx.destination);
+    shimmer.start(ctx.currentTime + 0.5);
+    shimmer.stop(ctx.currentTime + 1.2);
+  }
+
   startMusic() {
     if (this.musicPlaying) return;
     const ctx = this.getCtx();

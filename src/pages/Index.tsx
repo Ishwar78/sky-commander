@@ -9,7 +9,7 @@ import { useCountUp } from "@/hooks/use-count-up";
 import { getDailyBonusInfo, claimDailyBonus } from "@/lib/upgrades";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import DailyRewardsCalendar from "@/components/DailyRewardsCalendar";
-import { getXPData, xpForLevel, LEVEL_REWARDS } from "@/lib/xp";
+import { getXPData, xpForLevel, LEVEL_REWARDS, getPrestigeData, getPrestigeRankName, getPrestigeRankIcon } from "@/lib/xp";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -302,6 +302,7 @@ const StatsPanel = () => {
 
 const XPBadge = () => {
   const xpData = getXPData();
+  const prestige = getPrestigeData();
   const xpNeeded = xpForLevel(xpData.level);
   const progress = xpData.currentXP / xpNeeded;
   const nextReward = LEVEL_REWARDS.find(r => r.level > xpData.level);
@@ -313,6 +314,14 @@ const XPBadge = () => {
       transition={{ delay: 0.4 }}
       className="flex flex-col items-center mb-4"
     >
+      {prestige.rank > 0 && (
+        <div className="flex items-center gap-1 mb-1">
+          <span className="text-sm">{getPrestigeRankIcon(prestige.rank)}</span>
+          <span className="font-display text-[10px] text-[hsl(var(--neon-yellow))]">
+            {getPrestigeRankName(prestige.rank)} P{prestige.totalPrestiges}
+          </span>
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-1">
         <Star className="w-4 h-4 text-accent" />
         <span className="font-display text-sm text-accent">LEVEL {xpData.level}</span>

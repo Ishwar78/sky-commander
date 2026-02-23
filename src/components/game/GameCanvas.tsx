@@ -943,6 +943,9 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     const xpEarned = calculateGameXP({ score: gs.score, kills: gs.totalKills, wave: gs.wave, maxCombo: gs.maxCombo });
     const xpResult = addXP(xpEarned);
     setXpGained({ xp: xpEarned, levelsGained: xpResult.levelsGained, newRewards: xpResult.newRewards });
+    if (xpResult.levelsGained > 0) {
+      soundEngine.levelUp();
+    }
 
     const unlocked = checkGameAchievements({
       score: gs.score, wave: gs.wave, maxCombo: gs.maxCombo,
