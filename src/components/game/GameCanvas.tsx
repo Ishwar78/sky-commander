@@ -860,6 +860,19 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8; ctx.fillRect(12, 12, 116 * healthPct, 12); ctx.shadowBlur = 0;
 
     ctx.fillStyle = skin.glowColor; ctx.shadowColor = skin.glowColor; ctx.shadowBlur = 5;
+    ctx.fillRect(12, 12, 116 * healthPct, 12); ctx.shadowBlur = 0;
+
+    // Beam charge bar (only when beam weapon equipped)
+    if (gs.currentWeapon === "beam") {
+      const charge = gs.beamCharge / 180;
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(10, 30, 120, 8);
+      ctx.strokeStyle = "#ff4444"; ctx.lineWidth = 1; ctx.strokeRect(10, 30, 120, 8);
+      const chargeColor = charge >= 1 ? "#ffffff" : charge > 0.6 ? "#ff6666" : "#ff4444";
+      ctx.fillStyle = chargeColor; ctx.shadowColor = chargeColor; ctx.shadowBlur = charge * 12;
+      ctx.fillRect(12, 32, 116 * charge, 4); ctx.shadowBlur = 0;
+      ctx.font = "7px Rajdhani"; ctx.fillStyle = "#ff8888"; ctx.textAlign = "left";
+      ctx.fillText(`CHARGE ${Math.floor(charge * 100)}%`, 12, 48);
+    }
     ctx.font = "bold 20px Orbitron"; ctx.textAlign = "right"; ctx.fillText(`${gs.score}`, CANVAS_WIDTH - 15, 26); ctx.shadowBlur = 0;
     ctx.font = "10px Rajdhani"; ctx.fillStyle = `${skin.glowColor}80`; ctx.fillText("SCORE", CANVAS_WIDTH - 15, 38);
     ctx.textAlign = "left"; ctx.fillText("SHIELD", 12, 38);
