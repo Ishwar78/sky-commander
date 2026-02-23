@@ -31,7 +31,7 @@ interface Particle { x: number; y: number; vx: number; vy: number; life: number;
 interface Star { x: number; y: number; speed: number; size: number; brightness: number; }
 interface PowerUp {
   x: number; y: number; width: number; height: number; speed: number;
-  type: "shield" | "rapid" | "multi" | "health";
+  type: "shield" | "rapid" | "multi" | "health" | "speed" | "double";
 }
 interface TrailParticle { x: number; y: number; life: number; maxLife: number; size: number; }
 
@@ -39,10 +39,10 @@ const CANVAS_WIDTH = 480;
 const CANVAS_HEIGHT = 700;
 
 const POWERUP_COLORS: Record<string, string> = {
-  shield: "#00ccff", rapid: "#ffcc00", multi: "#ff66ff", health: "#00ff66",
+  shield: "#00ccff", rapid: "#ffcc00", multi: "#ff66ff", health: "#00ff66", speed: "#ff8800", double: "#ff3399",
 };
 const POWERUP_LABELS: Record<string, string> = {
-  shield: "🛡️", rapid: "⚡", multi: "🔥", health: "💚",
+  shield: "🛡️", rapid: "⚡", multi: "🔥", health: "💚", speed: "🚀", double: "💥",
 };
 const ENEMY_COLORS: Record<string, string> = {
   normal: "#ff3366", fast: "#ffaa00", tank: "#6644ff", boss: "#ff0000", shield: "#00aaff", stealth: "#88ffbb", splitter: "#ff88cc", mini: "#ff88cc",
@@ -105,6 +105,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     doubleScoreTimer: 0,
     armorTimer: 0,
     magnetActive: false,
+    speedBoostTimer: 0,
+    doubleBulletTimer: 0,
     tapRipples: [] as { x: number; y: number; life: number; maxLife: number }[],
     aimTarget: null as { x: number; y: number } | null,
     holdFiring: false,
@@ -174,7 +176,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
   const spawnPowerUp = (x: number, y: number) => {
     const dropChance = gameStateRef.current.magnetActive ? 0.4 : 0.2;
     if (Math.random() > dropChance) return;
-    const types: PowerUp["type"][] = ["shield", "rapid", "multi", "health"];
+    const types: PowerUp["type"][] = ["shield", "rapid", "multi", "health", "speed", "double"];
     gameStateRef.current.powerUps.push({ x, y, width: 20, height: 20, speed: 2, type: types[Math.floor(Math.random() * types.length)] });
   };
 
@@ -487,6 +489,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     if (gs.multiShot > 0) gs.multiShot--;
     if (gs.doubleScoreTimer > 0) gs.doubleScoreTimer--;
     if (gs.armorTimer > 0) gs.armorTimer--;
+    if (gs.speedBoostTimer > 0) gs.speedBoostTimer--;
+    if (gs.doubleBulletTimer > 0) gs.doubleBulletTimer--;
 
     if (gs.comboTimer > 0) {
       gs.comboTimer--;
@@ -517,7 +521,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     for (let i = 0; i < CANVAS_HEIGHT; i += 40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(CANVAS_WIDTH, i); ctx.stroke(); }
 
     const p = gs.player;
-    const spd = p.speed + gs.speedBonus;
+    const spd = (p.speed + gs.speedBonus) * (gs.speedBoostTimer > 0 ? 1.5 : 1);
     if (gs.keys[kb.left] || gs.keys["a"]) p.x -= spd;
     if (gs.keys[kb.right] || gs.keys["d"]) p.x += spd;
     if (gs.keys[kb.up] || gs.keys["w"]) p.y -= spd;
@@ -541,7 +545,13 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         gs.bullets.push({ x: p.x + p.width / 2 - 12, y: p.y + 5, width: 4, height: 12, speed: 8, damage: dmg });
         gs.bullets.push({ x: p.x + p.width / 2 + 8, y: p.y + 5, width: 4, height: 12, speed: 8, damage: dmg });
         gs.lastShot = now; soundEngine.shoot();
-      } else { shootWeapon(); }
+      } else {
+        shootWeapon();
+        // Double bullet: fire a second bullet slightly offset
+        if (gs.doubleBulletTimer > 0) {
+          setTimeout(() => shootWeapon(), 50);
+        }
+      }
     }
 
     gs.bullets = gs.bullets.filter((b) => {
@@ -700,7 +710,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       ctx.font = "14px serif"; ctx.textAlign = "center"; ctx.fillText(POWERUP_LABELS[pu.type], pu.x + pu.width / 2, pu.y + pu.height / 2 + 5); ctx.restore();
       if (p.x < pu.x + pu.width && p.x + p.width > pu.x && p.y < pu.y + pu.height && p.y + p.height > pu.y) {
         soundEngine.powerUp(); spawnParticles(pu.x, pu.y, col, 8);
-        switch (pu.type) { case "shield": gs.shield = 600 + gs.shieldDurBonus; break; case "rapid": gs.rapidFire = 480; break; case "multi": gs.multiShot = 360; break; case "health": gs.health = Math.min(gs.maxHealth, gs.health + 25); setHealth(gs.health); break; }
+        switch (pu.type) { case "shield": gs.shield = 600 + gs.shieldDurBonus; break; case "rapid": gs.rapidFire = 480; break; case "multi": gs.multiShot = 360; break; case "health": gs.health = Math.min(gs.maxHealth, gs.health + 25); setHealth(gs.health); break; case "speed": gs.speedBoostTimer = 1800; break; case "double": gs.doubleBulletTimer = 1800; break; }
         return false;
       }
       return pu.y < CANVAS_HEIGHT + 20;
@@ -834,6 +844,8 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     if (gs.shield > 0) indicators.push("🛡️ SHIELD");
     if (gs.rapidFire > 0) indicators.push("⚡ RAPID");
     if (gs.multiShot > 0) indicators.push("🔥 MULTI");
+    if (gs.speedBoostTimer > 0) indicators.push("🚀 SPEED");
+    if (gs.doubleBulletTimer > 0) indicators.push("💥 DOUBLE");
     if (indicators.length > 0) { ctx.font = "11px Orbitron"; ctx.textAlign = "center"; ctx.fillStyle = "#ffcc00"; ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 5; ctx.fillText(indicators.join("  "), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 10); ctx.shadowBlur = 0; }
 
     if (gs.bossActive) { ctx.font = "12px Orbitron"; ctx.textAlign = "center"; ctx.fillStyle = "#ff0000"; ctx.shadowColor = "#ff0000"; ctx.shadowBlur = 10; ctx.fillText("⚠ BOSS FIGHT ⚠", CANVAS_WIDTH / 2, 50); ctx.shadowBlur = 0; }
@@ -906,13 +918,15 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
 
     // Apply power-up boosts
     const boosts = getActiveBoosts();
-    gs.doubleScoreTimer = 0; gs.armorTimer = 0; gs.magnetActive = false;
+    gs.doubleScoreTimer = 0; gs.armorTimer = 0; gs.magnetActive = false; gs.speedBoostTimer = 0; gs.doubleBulletTimer = 0;
     if (boosts.includes("boost_shield")) gs.shield = 600 + gs.shieldDurBonus;
     if (boosts.includes("boost_rapid")) gs.rapidFire = 600;
     if (boosts.includes("boost_health")) { gs.health += 50; gs.maxHealth += 50; }
     if (boosts.includes("boost_double")) gs.doubleScoreTimer = 3600; // ~60s at 60fps
     if (boosts.includes("boost_magnet")) gs.magnetActive = true;
     if (boosts.includes("boost_armor")) gs.armorTimer = 1800; // ~30s
+    if (boosts.includes("boost_speed")) gs.speedBoostTimer = 1800; // ~30s
+    if (boosts.includes("boost_doublebullet")) gs.doubleBulletTimer = 1800; // ~30s
     clearActiveBoosts();
 
     setScore(0); setHealth(gs.maxHealth); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0); setMaxCombo(0); setMaxMultiplier(1);

@@ -21,6 +21,8 @@ export const POWER_UP_BOOSTS: PowerUpBoost[] = [
   { id: "boost_double", name: "Double Score", description: "2x score for the first 60 seconds", icon: "✨", cost: 50, effect: "double_score" },
   { id: "boost_magnet", name: "Power Magnet", description: "Power-ups drop 2x more often", icon: "🧲", cost: 40, effect: "magnet" },
   { id: "boost_armor", name: "Armor Plating", description: "Take 50% less damage for 30 seconds", icon: "🔩", cost: 45, effect: "armor" },
+  { id: "boost_speed", name: "Speed Boost", description: "Ship moves 50% faster for 30 seconds", icon: "🚀", cost: 35, effect: "speed_boost" },
+  { id: "boost_doublebullet", name: "Double Bullet", description: "Fire double bullets for 30 seconds", icon: "💥", cost: 40, effect: "double_bullet" },
 ];
 
 const BOOSTS_KEY = "skyfire-active-boosts";
