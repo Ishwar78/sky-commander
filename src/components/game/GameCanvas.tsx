@@ -70,7 +70,7 @@ const GameCanvas = () => {
     frameCount: 0, lastShot: 0, shotInterval: 150,
     wave: 1, waveKills: 0, waveThreshold: 10, bossActive: false,
     waveTransition: false, waveTransitionTimer: 0,
-    shakeIntensity: 0, shakeDecay: 0.9,
+    shakeIntensity: 0, shakeDecay: 0.9, hitFlash: 0,
     difficultyMult: DIFFICULTY_MULTIPLIERS["normal"],
     keyBindings: getSettings().keyBindings,
     combo: 0, comboTimer: 0, maxCombo: 0, comboMultiplier: 1,
@@ -171,6 +171,7 @@ const GameCanvas = () => {
 
   const triggerShake = (intensity: number) => {
     gameStateRef.current.shakeIntensity = intensity;
+    gameStateRef.current.hitFlash = 8;
   };
 
   const shootEnemyBullet = (e: Enemy) => {
@@ -355,6 +356,7 @@ const GameCanvas = () => {
     }
 
     gs.frameCount++;
+    if (gs.hitFlash > 0) gs.hitFlash--;
     if (gs.shield > 0) gs.shield--;
     if (gs.rapidFire > 0) gs.rapidFire--;
     if (gs.multiShot > 0) gs.multiShot--;
@@ -526,7 +528,7 @@ const GameCanvas = () => {
     });
 
     gs.particles = gs.particles.filter((pt) => { pt.x += pt.vx; pt.y += pt.vy; pt.life--; const alpha = pt.life / pt.maxLife; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = pt.color; ctx.shadowColor = pt.color; ctx.shadowBlur = 5; ctx.fillRect(pt.x, pt.y, pt.size, pt.size); ctx.restore(); return pt.life > 0; });
-    gs.trailParticles = gs.trailParticles.filter((tp) => { tp.life--; const alpha = tp.life / tp.maxLife; ctx.save(); ctx.globalAlpha = alpha * 0.6; ctx.fillStyle = skin.engineColor; ctx.shadowColor = skin.engineColor; ctx.shadowBlur = 4; ctx.beginPath(); ctx.arc(tp.x, tp.y + (tp.maxLife - tp.life) * 0.5, tp.size * alpha, 0, Math.PI * 2); ctx.fill(); ctx.restore(); return tp.life > 0; });
+    gs.trailParticles = gs.trailParticles.filter((tp) => { tp.life--; const alpha = tp.life / tp.maxLife; ctx.save(); ctx.globalAlpha = Math.max(0, alpha * 0.6); ctx.fillStyle = skin.engineColor; ctx.shadowColor = skin.engineColor; ctx.shadowBlur = 4; ctx.beginPath(); ctx.arc(tp.x, tp.y + (tp.maxLife - tp.life) * 0.5, Math.max(0.1, tp.size * alpha), 0, Math.PI * 2); ctx.fill(); ctx.restore(); return tp.life > 0; });
 
     drawPlayer(ctx, p, gs.shield > 0);
 
@@ -574,6 +576,12 @@ const GameCanvas = () => {
     gs.enemyBullets.forEach((eb) => { ctx.fillStyle = "rgba(255, 68, 68, 0.6)"; ctx.fillRect(radarX + eb.x * scaleX, radarY + eb.y * scaleY, 1, 1); });
     ctx.font = "7px Orbitron"; ctx.fillStyle = "rgba(0, 255, 200, 0.4)"; ctx.textAlign = "center"; ctx.fillText("RADAR", radarX + radarW / 2, radarY + radarH + 8);
 
+    // Hit flash overlay
+    if (gs.hitFlash > 0) {
+      ctx.fillStyle = `rgba(255, 50, 50, ${gs.hitFlash * 0.04})`;
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+
     ctx.restore();
     animFrameRef.current = requestAnimationFrame(gameLoop);
   }, []);
@@ -604,7 +612,7 @@ const GameCanvas = () => {
     gs.lastEnemySpawn = 0; gs.spawnInterval = 1500; gs.difficulty = 1; gs.frameCount = 0; gs.lastShot = 0;
     gs.touchMove = { dx: 0, dy: 0 }; gs.touchFiring = false;
     gs.wave = 1; gs.waveKills = 0; gs.waveThreshold = 10; gs.bossActive = false;
-    gs.waveTransition = false; gs.waveTransitionTimer = 0; gs.shakeIntensity = 0;
+    gs.waveTransition = false; gs.waveTransitionTimer = 0; gs.shakeIntensity = 0; gs.hitFlash = 0;
     gs.combo = 0; gs.comboTimer = 0; gs.maxCombo = 0; gs.comboMultiplier = 1;
     gs.bossKilledThisGame = false;
     setScore(0); setHealth(gs.maxHealth); setGameOver(false); setPaused(false); setGameStarted(true); setWave(1); setWaveAnnounce(0); setMaxCombo(0); setMaxMultiplier(1);
