@@ -205,6 +205,24 @@ class SoundEngine {
     source.start();
   }
 
+  comboKill(combo: number) {
+    if (this.muted || combo < 2) return;
+    const ctx = this.getCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    // Base pitch rises with combo, capped at combo 20
+    const basePitch = 400 + Math.min(combo, 20) * 60;
+    osc.frequency.setValueAtTime(basePitch, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(basePitch * 1.5, ctx.currentTime + 0.06);
+    const vol = Math.min(0.12, 0.04 + combo * 0.005) * this.volume;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  }
+
   beamOverheat() {
     if (this.muted) return;
     const ctx = this.getCtx();

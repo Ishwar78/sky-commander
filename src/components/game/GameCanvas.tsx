@@ -792,6 +792,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
           e.health -= b.damage;
           if (e.health <= 0) {
             gs.combo++; gs.comboTimer = 120; gs.comboMultiplier = 1 + Math.floor(gs.combo / 3) * 0.5;
+            soundEngine.comboKill(gs.combo);
             if (gs.combo > gs.maxCombo) { gs.maxCombo = gs.combo; setMaxCombo(gs.maxCombo); }
             // UNSTOPPABLE flash + burst at combo 15
             if (gs.combo === 15) {
@@ -1060,6 +1061,23 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     // Hit flash overlay
     if (gs.hitFlash > 0) {
       ctx.fillStyle = `rgba(255, 50, 50, ${gs.hitFlash * 0.04})`;
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+
+    // Low-health vignette effect
+    const healthRatio = Math.max(0, gs.health) / gs.maxHealth;
+    if (healthRatio < 0.4) {
+      const intensity = 1 - healthRatio / 0.4; // 0→1 as health drops from 40%→0%
+      const pulse = 1 + Math.sin(gs.frameCount * 0.08) * 0.15 * intensity;
+      const alpha = intensity * 0.6 * pulse;
+      const gradient = ctx.createRadialGradient(
+        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_WIDTH * 0.25,
+        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_WIDTH * 0.75
+      );
+      gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+      gradient.addColorStop(0.6, `rgba(80, 0, 0, ${alpha * 0.3})`);
+      gradient.addColorStop(1, `rgba(180, 0, 0, ${alpha})`);
+      ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     }
 
