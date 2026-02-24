@@ -223,6 +223,34 @@ class SoundEngine {
     osc.stop(ctx.currentTime + 0.1);
   }
 
+  heartbeat(intensity: number) {
+    if (this.muted) return;
+    const ctx = this.getCtx();
+    const vol = (0.06 + intensity * 0.1) * this.volume;
+    // "lub" - low thump
+    const osc1 = ctx.createOscillator();
+    const g1 = ctx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(50, ctx.currentTime);
+    osc1.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.1);
+    g1.gain.setValueAtTime(vol, ctx.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc1.connect(g1).connect(ctx.destination);
+    osc1.start();
+    osc1.stop(ctx.currentTime + 0.12);
+    // "dub" - slightly higher, delayed
+    const osc2 = ctx.createOscillator();
+    const g2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(60, ctx.currentTime + 0.15);
+    osc2.frequency.exponentialRampToValueAtTime(35, ctx.currentTime + 0.25);
+    g2.gain.setValueAtTime(vol * 0.7, ctx.currentTime + 0.15);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.27);
+    osc2.connect(g2).connect(ctx.destination);
+    osc2.start(ctx.currentTime + 0.15);
+    osc2.stop(ctx.currentTime + 0.27);
+  }
+
   beamOverheat() {
     if (this.muted) return;
     const ctx = this.getCtx();
