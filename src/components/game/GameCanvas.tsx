@@ -1079,6 +1079,11 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       gradient.addColorStop(1, `rgba(180, 0, 0, ${alpha})`);
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      // Heartbeat sound synced with pulse peaks — rate increases with intensity
+      const beatInterval = Math.max(25, Math.floor(60 - intensity * 35)); // frames between beats
+      if (gs.frameCount % beatInterval === 0) {
+        soundEngine.heartbeat(intensity);
+      }
     }
 
     ctx.restore();
