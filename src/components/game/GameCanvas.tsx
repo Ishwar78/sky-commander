@@ -365,6 +365,37 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         spawnParticles(smokeX, smokeY, gs.beamOverheated ? "#ff2200" : "#ff880088", 1);
       }
     }
+    // Cooldown timer overlay during overheat lockout
+    if (gs.currentWeapon === "beam" && gs.beamOverheated && gs.beamCooldown > 0) {
+      const cooldownProgress = 1 - gs.beamCooldown / 90; // 0 → 1 as cooldown completes
+      const cx = p.x + p.width / 2;
+      const cy = p.y + p.height / 2;
+      const radius = 22;
+      // Background ring (dark)
+      ctx.strokeStyle = "rgba(100, 100, 100, 0.5)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      // Progress arc (cyan → green)
+      const startAngle = -Math.PI / 2;
+      const endAngle = startAngle + cooldownProgress * Math.PI * 2;
+      ctx.strokeStyle = cooldownProgress < 0.5
+        ? `rgba(0, 200, 255, ${0.6 + cooldownProgress * 0.4})`
+        : `rgba(0, 255, ${Math.floor(100 + cooldownProgress * 155)}, ${0.7 + cooldownProgress * 0.3})`;
+      ctx.lineWidth = 4;
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, startAngle, endAngle);
+      ctx.stroke();
+      // Percentage text
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 10px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`${Math.floor(cooldownProgress * 100)}%`, cx, cy);
+    }
     ctx.restore();
   };
 
@@ -615,10 +646,15 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
         // Accumulate heat at full charge
         if (gs.beamCharge >= 180) {
           gs.beamHeat = Math.min(gs.beamHeatMax, gs.beamHeat + 1);
+          // Sizzle warning sound every 20 frames when heat > 80%
+          if (gs.beamHeat > gs.beamHeatMax * 0.8 && gs.beamHeat < gs.beamHeatMax && gs.frameCount % 20 === 0) {
+            soundEngine.beamHeatWarning();
+          }
           if (gs.beamHeat >= gs.beamHeatMax) {
             gs.beamOverheated = true;
             gs.beamCooldown = 90; // 1.5s cooldown
             gs.shakeIntensity = 8; // big shake on overheat
+            soundEngine.beamOverheat();
           }
         } else {
           gs.beamHeat = Math.max(0, gs.beamHeat - 1); // slow heat decay when not full
