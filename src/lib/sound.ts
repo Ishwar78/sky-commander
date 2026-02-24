@@ -183,6 +183,62 @@ class SoundEngine {
     osc.stop(ctx.currentTime + 0.12);
   }
 
+  beamHeatWarning() {
+    if (this.muted) return;
+    const ctx = this.getCtx();
+    // Sizzle: filtered noise burst
+    const bufferSize = ctx.sampleRate * 0.08;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize) * 0.6;
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 3000;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.06 * this.volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    source.connect(filter).connect(gain).connect(ctx.destination);
+    source.start();
+  }
+
+  beamOverheat() {
+    if (this.muted) return;
+    const ctx = this.getCtx();
+    // Steam burst: longer noise with bandpass
+    const bufferSize = ctx.sampleRate * 0.4;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 2000;
+    filter.Q.value = 0.8;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.15 * this.volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    source.connect(filter).connect(gain).connect(ctx.destination);
+    source.start();
+    // Add a descending tone for dramatic effect
+    const osc = ctx.createOscillator();
+    const oGain = ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
+    oGain.gain.setValueAtTime(0.06 * this.volume, ctx.currentTime);
+    oGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.connect(oGain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  }
+
   claimReward() {
     if (this.muted) return;
     const ctx = this.getCtx();
