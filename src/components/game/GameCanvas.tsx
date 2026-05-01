@@ -1321,7 +1321,7 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
       )}
 
       {showTutorial && (
-        <div style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
+        <div className="absolute inset-0 z-50" style={{ transform: `scale(${canvasScale})`, transformOrigin: "top center" }}>
           <Tutorial onComplete={() => setShowTutorial(false)} />
         </div>
       )}
