@@ -1225,6 +1225,33 @@ const GameCanvas = ({ mode = "normal" }: GameCanvasProps) => {
     return () => { cancelAnimationFrame(animFrameRef.current); };
   }, [gameStarted, gameLoop]);
 
+  // Auto-pause when the app/tab is backgrounded (incoming call, lock screen,
+  // tab switch). Resume only requires the player to tap Play / press P.
+  useEffect(() => {
+    const autoPause = () => {
+      const gs = gameStateRef.current;
+      if (!gameStarted || gs.gameOver || gs.paused) return;
+      gs.paused = true;
+      setPaused(true);
+      // Release any held inputs so the ship doesn't drift on resume.
+      gs.touchMove = { dx: 0, dy: 0 };
+      gs.touchFiring = false;
+      gs.holdFiring = false;
+      gs.keys = {};
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") autoPause();
+    };
+    window.addEventListener("blur", autoPause);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", autoPause);
+    return () => {
+      window.removeEventListener("blur", autoPause);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", autoPause);
+    };
+  }, [gameStarted]);
+
   const toggleMute = () => { const next = !muted; setMuted(next); soundEngine.setMuted(next); };
 
   const unlockedWeapons = gameStateRef.current.unlockedWeapons;
